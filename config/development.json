@@ -1,0 +1,42 @@
+{
+  "port": 3032,
+  "hostAddress": "localhost:3032",
+  "databaseHost": "127.0.0.1",
+  "databasePort": "27017",
+  "databaseName": "calisdiary",
+  "databaseUser": "fanousAdmin",
+  "databasePassword": "Co#dly@2024",
+  "jwtsecret": "nodejwt",
+  "jwtresetsecret": "nodejwt",
+  "nodemailer": {
+    "service": "gmail",
+    "email": "fanos6506@gmail.com",
+    "password": "xbwz kghw ozgk bvxf"
+  },
+  "jwtOptions": {
+    "expiresIn": "24h"
+  },
+  "swaggerDefinition": {
+    "info": {
+      "title": "Fanous API Documentation",
+      "version": "1.0.0",
+      "description": "API documentation for Fanous application"
+    },
+    "host": "localhost:3032",
+    "basePath": "/api/v1",
+    "securityDefinitions": {
+      "tokenauth": {
+        "type": "apiKey",
+        "name": "Authorization",
+        "in": "header"
+      }
+    },
+    "schemes": ["http", "https"]
+  },
+  "cloudinary": {
+    "cloud_name": "dgskkodvm",
+    "api_key": "638554831276168",
+    "api_secret": "SV14YRLHeV-vstEkJp3yNwwnQcg"
+  },
+  "serverKey":"AAAAvwzso1E:APA91bGW6LKyzyLgEq5zdzPUYyIYEom5qlDmRnvvPR6qMRexREcEcM_HFMEUwuMvvW1CNLftipxfUgbypSSdTp2HaIlNCJKnpdBO-tBNhNk4zTWRD2cQDyRNT-x_rnlSvfoR0eRSbOup"
+}

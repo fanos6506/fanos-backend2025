@@ -1,0 +1,1837 @@
+import Joi from "joi";
+import _ from "lodash";
+import config from "config";
+import apiError from "../../../../helper/apiError";
+import response from "../../../../../assets/response";
+import responseMessage from "../../../../../assets/responseMessage";
+import status from "../../../../enums/status";
+import commonFunction from "../../../../helper/util";
+import approveStatus from "../../../../enums/approveStatus";
+import categoryType from "../../../../enums/categoryType";
+import { userServices } from "../../services/user";
+import { categoryServices } from "../../services/category";
+import { subCategoryServices } from "../../services/subCategory";
+import { productServices } from "../../services/product";
+import userType from "../../../../enums/userType";
+
+const Product = require("../../../../models/product");
+const {
+  addProduct,
+  createProduct,
+  findProduct,
+  findProduct1,
+  updateProduct,
+  countProduct,
+  paginateSortingForProduct,
+  countDocuments,
+  productList,
+  findAllProduct,
+  FindAllPaginateSearchForProduct,
+  productListWithPagination,
+  ParticularProductListWithPagination,
+  ParticularProductListWithPaginationForProductStatus,
+  findMyLikesProduct,
+  listProductV2,
+  deleteProduct,
+  deleteProducts,
+  paginateSearchForProduct,
+  paginateSearch1,
+} = productServices;
+const {
+  createSubCategory,
+  findSubCategory,
+  updateSubCategory,
+  subCategoryList,
+  subCategoryListWithPagination,
+} = subCategoryServices;
+const {
+  createCategory,
+  findCategory,
+  updateCategory,
+  categoryList,
+  categoryListWithPagination,
+} = categoryServices;
+const {
+  userCheck,
+  checkUserExists,
+  emailMobileExist,
+  checkSocialLogin,
+  findCount,
+  createUser,
+  findUser,
+  findUserData,
+  deleteUser,
+  userFindList,
+  updateUser,
+  updateUserById,
+  insertManyUser,
+  paginateSearch,
+  userCount,
+  userList,
+} = userServices;
+
+import { reportService } from "../../services/report";
+const {
+  createReport,
+  findReport,
+  updateReport,
+  reportList,
+  reportPaginate,
+  countReport,
+} = reportService;
+
+import { notificationServices } from "../../services/notification";
+const { notificationCreate, notificationData, notificationUpdate } =
+  notificationServices;
+
+import { chattingServices } from "../../services/socket";
+const { findChat } = chattingServices;
+
+import { searchServices } from "../../services/search";
+const { createSearch, findSearch, updateSearch, SearchList } = searchServices;
+
+import { wishlistServices } from "../../services/wishlist";
+const {
+  createWishlist,
+  findWishlist,
+  updateWishlist,
+  checkWishlist,
+  paginateWishlistList,
+  paginateWishlist,
+  deleteWishlist,
+  wishlistCount,
+  wishlist,
+} = wishlistServices;
+
+const daysOfWeek = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+import mongoose from "mongoose";
+import { pipeline } from "nodemailer/lib/xoauth2";
+export class productController {
+  /**
+   * @swagger
+   * /product/addProduct:
+   *   post:
+   *     tags:
+   *       - PRODUCT
+   *     description: addProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: productName
+   *         description: productName
+   *         in: formData
+   *         required: true
+   *       - name: description
+   *         description: product description
+   *         in: formData
+   *         required: true
+   *       - name: categoryId
+   *         description: categoryId
+   *         in: formData
+   *         required: true
+   *       - name: subCategoryId
+   *         description: subCategoryId
+   *         in: formData
+   *         required: true
+   *       - name: price
+   *         description: price
+   *         in: formData
+   *         required: true
+   *       - name: currency
+   *         description: currency
+   *         in: formData
+   *         required: true
+   *       - name: location
+   *         description: location
+   *         in: formData
+   *         required: true
+   *       - name: city
+   *         description: city
+   *         in: formData
+   *         required: true
+   *       - name: productImage1
+   *         description: productImage1
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage2
+   *         description: productImage2
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage3
+   *         description: productImage3
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage4
+   *         description: productImage4
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage5
+   *         description: productImage5
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage6
+   *         description: productImage6
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage7
+   *         description: productImage7
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage8
+   *         description: productImage8
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage9
+   *         description: productImage9
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage10
+   *         description: productImage10
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: lat
+   *         description: lat
+   *         in: formData
+   *         required: false
+   *       - name: long
+   *         description: long
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async addProduct(req, res, next) {
+    var validationSchema = Joi.object({
+      productName: Joi.string().required(),
+      description: Joi.string().optional(),
+      categoryId: Joi.string().optional(),
+      subCategoryId: Joi.string().optional(),
+      price: Joi.string().optional(),
+      currency: Joi.string().required(),
+      location: Joi.string().optional(),
+      city: Joi.string().optional(),
+      productImage1: Joi.string().optional(),
+      productImage2: Joi.string().optional(),
+      productImage3: Joi.string().optional(),
+      productImage4: Joi.string().optional(),
+      productImage5: Joi.string().optional(),
+      productImage6: Joi.string().optional(),
+      productImage7: Joi.string().optional(),
+      productImage8: Joi.string().optional(),
+      productImage9: Joi.string().optional(),
+      productImage10: Joi.string().optional(),
+      lat: Joi.number().optional(),
+      long: Joi.number().optional(),
+    });
+    try {
+      if (req.files.length < 3) {
+        throw apiError.conflict(responseMessage.ADD_IMG_3);
+      }
+      var validatedBody = await validationSchema.validateAsync(req.body);
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      let categoryRes = await findCategory({
+        _id: validatedBody.categoryId,
+        categoryType: categoryType.PRODUCT,
+        status: { $ne: status.DELETE },
+      });
+      if (!categoryRes) {
+        throw apiError.notFound(responseMessage.CATEGORY_NOT_FOUND);
+      }
+      let subCategoryRes = await findSubCategory({
+        _id: validatedBody.subCategoryId,
+        categoryId: categoryRes._id,
+        status: { $ne: status.DELETE },
+      });
+      if (!subCategoryRes) {
+        throw apiError.notFound(responseMessage.SUBCATEGORY_NOT_FOUND);
+      }
+      var result = [];
+      if (req.files) {
+        for (var i = 0; i < req.files.length; i++) {
+          let imgUrl = await commonFunction.getImageUrl(req.files[i].path);
+          result.push(imgUrl.secure_url);
+        }
+      }
+
+      let count = await countProduct();
+      validatedBody.productGenerateId = await commonFunction.generateProductId(
+        count
+      );
+      validatedBody.productImage = result;
+      validatedBody.userId = userResult._id;
+      let saveRes = await createProduct(validatedBody);
+      return res.json(new response(saveRes, responseMessage.CREATE_PRODUCT));
+    } catch (error) {
+      console.log(error);
+      return next(error);
+    }
+  }
+
+
+
+  /**
+   * @swagger
+   * /product/viewProduct:
+   *   get:
+   *     tags:
+   *       - PRODUCT
+   *     description: viewProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: productId
+   *         description: productId
+   *         in: query
+   *         required: true
+   *       - name: userId
+   *         description: productId
+   *         in: query
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async viewProduct(req, res, next) {
+    var validationSchema = Joi.object({
+      productId: Joi.string().required(),
+      userId: Joi.string().optional(),
+    });
+    try {
+      var validatedBody = await validationSchema.validateAsync(req.query);
+      let productRes = await findProduct({
+        _id: validatedBody.productId,
+        status: { $ne: status.DELETE },
+      });
+      if (!productRes) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+      productRes = JSON.parse(JSON.stringify(productRes));
+      if (
+        validatedBody.userId != undefined &&
+        validatedBody.userId != null &&
+        validatedBody.userId != "null"
+      ) {
+        const checkStatus = await checkWishlist({
+          userId: validatedBody.userId,
+          productId: validatedBody.productId,
+          status: "ACTIVE",
+        });
+        if (checkStatus) {
+          console.log("checkStatus", checkStatus);
+          productRes.inWishlist = true;
+        } else {
+          productRes.inWishlist = false;
+        }
+      } else {
+        productRes.inWishlist = false;
+      }
+      return res.json(new response(productRes, responseMessage.PRODUCT_FOUND));
+    } catch (error) {
+      console.log(error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/listProduct:
+   *   post:
+   *     tags:
+   *       - PRODUCT
+   *     description: listProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: search
+   *         description: search
+   *         in: formData
+   *         required: false
+   *       - name: fromDate
+   *         description: fromDate
+   *         in: formData
+   *         required: false
+   *       - name: toDate
+   *         description: toDate
+   *         in: formData
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: formData
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: formData
+   *         type: integer
+   *         required: false
+   *       - name: categoryId
+   *         description: categoryId
+   *         in: formData
+   *         required: false
+   *       - name: subCategoryId
+   *         description: subCategoryId
+   *         in: formData
+   *         required: false
+   *       - name: approveStatus
+   *         description: approveStatus
+   *         enum: ["PENDING" ,"REJECTED","APPROVED"]
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async listProduct(req, res, next) {
+    const validationSchema = Joi.object({
+      categoryId: Joi.string().allow("").optional(),
+      subCategoryId: Joi.string().allow("").optional(),
+      approveStatus: Joi.string().allow("").optional(),
+      search: Joi.string().allow("").optional(),
+      fromDate: Joi.string().allow("").optional(),
+      toDate: Joi.string().allow("").optional(),
+      page: Joi.number().allow("").optional(),
+      limit: Joi.number().allow("").optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      const userRes = await findUser({ _id: req.userId });
+      let dataResults = await productListWithPagination(validatedBody);
+      if (dataResults.docs.length == 0) {
+        return res.json(
+          new response(dataResults, responseMessage.PRODUCT_FOUND)
+        );
+      }
+      return res.json(new response(dataResults, responseMessage.PRODUCT_FOUND));
+    } catch (error) {
+      console.log("error", error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/myProductList:
+   *   post:
+   *     tags:
+   *       - PRODUCT
+   *     description: myProductList
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: search
+   *         description: search
+   *         in: formData
+   *         required: false
+   *       - name: fromDate
+   *         description: fromDate
+   *         in: formData
+   *         required: false
+   *       - name: toDate
+   *         description: toDate
+   *         in: formData
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: formData
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: formData
+   *         type: integer
+   *         required: false
+   *       - name: categoryId
+   *         description: categoryId
+   *         in: formData
+   *         required: false
+   *       - name: subCategoryId
+   *         description: subCategoryId
+   *         in: formData
+   *         required: false
+   *       - name: approveStatus
+   *         description: approveStatus
+   *         enum: ["PENDING" ,"REJECTED","APPROVED"]
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async myProductList(req, res, next) {
+    const validationSchema = Joi.object({
+      categoryId: Joi.string().allow("").optional(),
+      subCategoryId: Joi.string().allow("").optional(),
+      approveStatus: Joi.string().allow("").optional(),
+      search: Joi.string().allow("").optional(),
+      fromDate: Joi.string().allow("").optional(),
+      toDate: Joi.string().allow("").optional(),
+      page: Joi.number().allow("").optional(),
+      limit: Joi.number().allow("").optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      validatedBody.userId = userResult._id;
+      let dataResults = await ParticularProductListWithPagination(
+        validatedBody
+      );
+      if (dataResults.docs.length == 0) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+      return res.json(new response(dataResults, responseMessage.PRODUCT_FOUND));
+    } catch (error) {
+      console.log("error", error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/myProductListwithStatus:
+   *   post:
+   *     tags:
+   *       - PRODUCT
+   *     description: myProductListwithStatus
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: search
+   *         description: search
+   *         in: formData
+   *         required: false
+   *       - name: fromDate
+   *         description: fromDate
+   *         in: formData
+   *         required: false
+   *       - name: toDate
+   *         description: toDate
+   *         in: formData
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: formData
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: formData
+   *         type: integer
+   *         required: false
+   *       - name: categoryId
+   *         description: categoryId
+   *         in: formData
+   *         required: false
+   *       - name: subCategoryId
+   *         description: subCategoryId
+   *         in: formData
+   *         required: false
+   *       - name: status
+   *         description: status
+   *         enum: ["ACTIVE" ,"DEACTIVE","SOLD","DELETE","BLOCK","HIDE" , "ACTIVE And DEACTIVE"]
+   *         in: formData
+   *         required: false
+   *       - name: approveStatus
+   *         description: approveStatus
+   *         enum: ["PENDING" ,"APPROVED","REJECTED"]
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async myProductListwithStatus(req, res, next) {
+    const validationSchema = Joi.object({
+      categoryId: Joi.string().allow("").optional(),
+      subCategoryId: Joi.string().allow("").optional(),
+      status: Joi.string().allow("").optional(),
+      approveStatus: Joi.string().allow("").optional(),
+      search: Joi.string().allow("").optional(),
+      fromDate: Joi.string().allow("").optional(),
+      toDate: Joi.string().allow("").optional(),
+      page: Joi.number().allow("").optional(),
+      limit: Joi.number().allow("").optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      validatedBody.userId = userResult._id;
+      if (validatedBody.status == "ACTIVE And DEACTIVE") {
+        validatedBody.status = { $in: [status.ACTIVE, status.DEACTIVE] };
+      }
+      let dataResults = await FindAllPaginateSearchForProduct( validatedBody);
+      // let dataResults = await findAllProduct( validatedBody);
+        // status: validatedBody.status,
+        // paymentStatus: "APPROVED",
+        // userId: validatedBody.userId,
+      return res.json(new response(dataResults, responseMessage.PRODUCT_FOUND));
+    } catch (error) {
+      console.log("error", error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/updateProduct:
+   *   post:
+   *     tags:
+   *       - PRODUCT
+   *     description: addProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: productId
+   *         description: productId
+   *         in: formData
+   *         required: true
+   *       - name: productName
+   *         description: productName
+   *         in: formData
+   *         required: false
+   *       - name: description
+   *         description: product description
+   *         in: formData
+   *         required: false
+   *       - name: categoryId
+   *         description: categoryId
+   *         in: formData
+   *         required: false
+   *       - name: subCategoryId
+   *         description: subCategoryId
+   *         in: formData
+   *         required: false
+   *       - name: price
+   *         description: price
+   *         in: formData
+   *         required: false
+   *       - name: location
+   *         description: location
+   *         in: formData
+   *         required: false
+   *       - name: city
+   *         description: city
+   *         in: formData
+   *         required: false
+   *       - name: productImage1
+   *         description: productImage1
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage2
+   *         description: productImage2
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage3
+   *         description: productImage3
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage4
+   *         description: productImage4
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage5
+   *         description: productImage5
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage6
+   *         description: productImage6
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage7
+   *         description: productImage7
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage8
+   *         description: productImage8
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage9
+   *         description: productImage9
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: productImage10
+   *         description: productImage10
+   *         in: formData
+   *         type: file
+   *         required: false
+   *       - name: lat
+   *         description: lat
+   *         in: formData
+   *         required: false
+   *       - name: long
+   *         description: long
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async updateProduct(req, res, next) {
+    var validationSchema = Joi.object({
+      productId: Joi.string().required(),
+      productName: Joi.string().optional(),
+      description: Joi.string().optional(),
+      categoryId: Joi.string().optional(),
+      subCategoryId: Joi.string().optional(),
+      price: Joi.string().optional(),
+      currency: Joi.string().required(),
+      location: Joi.string().optional(),
+      location: Joi.string().optional(),
+      city: Joi.string().optional(),
+      productImage1: Joi.string().optional(),
+      productImage2: Joi.string().optional(),
+      productImage3: Joi.string().optional(),
+      productImage4: Joi.string().optional(),
+      productImage5: Joi.string().optional(),
+      productImage6: Joi.string().optional(),
+      productImage7: Joi.string().optional(),
+      productImage8: Joi.string().optional(),
+      productImage9: Joi.string().optional(),
+      productImage10: Joi.string().optional(),
+      lat: Joi.number().optional(),
+      long: Joi.number().optional(),
+    });
+    try {
+      var validatedBody = await validationSchema.validateAsync(req.body);
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      let findProductRes = await findProduct({
+        _id: validatedBody.productId,
+        userId: userResult._id,
+        status: { $ne: status.DELETE },
+      });
+      if (!findProductRes) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+      let productRes = await findProduct({
+        productName: validatedBody.productName,
+        _id: { $ne: findProductRes._id },
+        status: { $ne: status.DELETE },
+      });
+      if (productRes) {
+        throw apiError.conflict(responseMessage.EXIST_PRODUCT);
+      }
+      var categoryRes;
+      if (validatedBody.categoryId) {
+        categoryRes = await findCategory({
+          _id: validatedBody.categoryId,
+          status: { $ne: status.DELETE },
+        });
+        if (!categoryRes) {
+          throw apiError.notFound(responseMessage.CATEGORY_NOT_FOUND);
+        }
+      }
+      if (validatedBody.categoryId && validatedBody.subCategoryId) {
+        let subCategoryRes = await findSubCategory({
+          _id: validatedBody.subCategoryId,
+          categoryId: categoryRes._id,
+          status: { $ne: status.DELETE },
+        });
+        if (!subCategoryRes) {
+          throw apiError.notFound(responseMessage.SUBCATEGORY_NOT_FOUND);
+        }
+      }
+      console.log(
+        5666415645,
+        findProductRes.productImage,
+        findProductRes.productImage.length
+      );
+      console.log(req.files, 1234);
+
+      const result = findProductRes.productImage || [];
+      console.log(result, 1234);
+      if (req.files) {
+        const fieldnameIndexMap = {
+          productImage1: 0,
+          productImage2: 1,
+          productImage3: 2,
+          productImage4: 3,
+          productImage5: 4,
+          productImage6: 5,
+          productImage7: 6,
+          productImage8: 7,
+          productImage9: 8,
+          productImage10: 9,
+        };
+
+        for (let i = 0; i < req.files.length; i++) {
+          const fieldname = req.files[i].fieldname;
+          const index = fieldnameIndexMap[fieldname];
+          const imgUrl = await commonFunction.getImageUrl(req.files[i].path);
+          if (index !== undefined && index < result.length) {
+            result[index] = imgUrl.secure_url;
+          } else {
+            result.push(imgUrl.secure_url);
+          }
+        }
+      }
+
+      validatedBody.productImage = result;
+      validatedBody.approveStatus = approveStatus.APPROVED;
+
+      const updateRes = await updateProduct(
+        { _id: findProductRes._id },
+        validatedBody
+      );
+
+      await notificationCreate({
+        userId: userResult._id,
+        title: "Product updated",
+        imageUrl: validatedBody.productImage[0],
+        body: `this new ${validatedBody.productName} product has been updated successfully.`,
+        currentTime: new Date().toISOString(),
+        currentDay: daysOfWeek[new Date().getDay()],
+      });
+      return res.json(new response(updateRes, responseMessage.PRODUCT_UPDATED));
+    } catch (error) {
+      console.log(error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/updateProductStatus:
+   *   post:
+   *     tags:
+   *       - PRODUCT
+   *     description: addProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: productId
+   *         description: productId
+   *         in: formData
+   *         required: true
+   *       - name: status
+   *         description: approveStatus
+   *         enum: ["DELETE" ,"SOLD","ACTIVE", "DEACTIVE"]
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async updateProductStatus(req, res, next) {
+    var validationSchema = Joi.object({
+      productId: Joi.string().required(),
+      status: Joi.string().required(),
+    });
+    try {
+      var validatedBody = await validationSchema.validateAsync(req.body);
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let findProductRes = await findProduct({
+        _id: validatedBody.productId,
+        userId: userResult._id,
+      });
+      if (!findProductRes) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+      let updateRes = await updateProduct(
+        { _id: findProductRes._id },
+        { status: validatedBody.status }
+      );
+      return res.json(new response(updateRes, responseMessage.PRODUCT_UPDATED));
+    } catch (error) {
+      console.log(error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/likeUnlikeProduct:
+   *   put:
+   *     tags:
+   *       - PRODUCT_LIKE/UNLIKE
+   *     description: likeUnlikeProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: _id
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async likeUnlikeProduct(req, res, next) {
+    const validationSchema = Joi.object({
+      _id: Joi.string().required(),
+    });
+    try {
+      let validatedBody = await validationSchema.validateAsync(req.query);
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      let productCheck = await findProduct({
+        _id: validatedBody._id,
+        status: { $ne: status.DELETE },
+      });
+      if (!productCheck) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+      let isExist = productCheck["likesUser"].some((id) => {
+        return id.equals(userResult._id);
+      });
+      if (isExist == true) {
+        let obj = {
+          title: "Product Like.",
+          description: `You have liked Product.`,
+          type: "LIKE",
+          userId: userResult._id,
+          productId: productCheck._id,
+        };
+        var name = userResult.name;
+        // await createActivity(obj);
+
+        let notificationObj = {
+          title: `Like a Product!`,
+          description: `${name} has like your product.`,
+          userId: userResult._id,
+          notificationType: "PRODUCT_LIKE",
+        };
+        // await createNotification(notificationObj);
+        let updateResult = await updateProduct(
+          { _id: productCheck._id },
+          { $pull: { likesUser: userResult._id } }
+        );
+        await updateUser(
+          { _id: userResult._id },
+          { $pull: { likesProduct: productCheck._id } }
+        );
+        return res.json(
+          new response(updateResult, responseMessage.UNLIKE_SUCCESS)
+        );
+      } else {
+        let updateRes = await updateProduct(
+          { _id: productCheck._id },
+          { $addToSet: { likesUser: userResult._id } }
+        );
+        await updateUser(
+          { _id: userResult._id },
+          { $addToSet: { likesProduct: productCheck._id } }
+        );
+        return res.json(new response(updateRes, responseMessage.LIKE_SUCCESS));
+      }
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/myLikesProduct:
+   *   get:
+   *     tags:
+   *       - PRODUCT_LIKE/UNLIKE
+   *     description: myLikesProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         type: integer
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async myLikesProduct(req, res, next) {
+    let validationSchema = Joi.object({
+      page: Joi.number().optional(),
+      limit: Joi.number().optional(),
+    });
+    try {
+      let validatedBody = await validationSchema.validateAsync(req.query);
+      const { page, limit } = validatedBody;
+      let userToken = await findUser({ _id: req.userId });
+      if (!userToken) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let query = {
+        status: status.ACTIVE,
+        likesUser: mongoose.Types.ObjectId(userToken._id),
+      };
+      let myShortlistRes = await productList(query);
+      if (myShortlistRes.length == 0) {
+        return res.json(
+          new response({ docs: myShortlistRes }, responseMessage.DATA_NOT_FOUND)
+        );
+      }
+
+      if (page && limit) {
+        let paginatedData = await commonFunction.paginationFunction(
+          myShortlistRes,
+          Number(page) || 1,
+          Number(limit) || 10
+        );
+        return res.json(
+          new response(paginatedData, responseMessage.DATA_FOUND)
+        );
+      }
+      return res.json(
+        new response({ docs: myShortlistRes }, responseMessage.DATA_FOUND)
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/deleteProduct:
+   *   delete:
+   *     tags:
+   *       - PRODUCT
+   *     description: deleteProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: _id
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async deleteProduct(req, res, next) {
+    const validationSchema = Joi.object({
+      _id: Joi.string().required(),
+    });
+    try {
+      let validatedBody = await validationSchema.validateAsync(req.query);
+      let productCheck = await findProduct({
+        _id: validatedBody._id,
+        userId: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!productCheck) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+
+      let updateRes = await deleteProduct({ _id: productCheck._id });
+      return res.json(new response(updateRes, responseMessage.PRODUCT_DELETED));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/createReport:
+   *   post:
+   *     tags:
+   *       - REPORT
+   *     description: createReport
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: productId
+   *         description: productId
+   *         in: formData
+   *         required: false
+   *       - name: reasonType
+   *         description: reasonType
+   *         in: formData
+   *         enum: ["Duplicate ad","Inappropriate Content","Misleading Information","Offensive Language","Scam OR Fraud","Other (Please Specify)"]
+   *       - name: description
+   *         description: description
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Report added successfully.
+   *       404:
+   *         description: User not found.
+   */
+  async createReport(req, res, next) {
+    try {
+      const { productId, reasonType, description } = req.body;
+
+      let user = await findUser({ _id: req.userId, status: status.ACTIVE });
+      if (!user) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      const productData = await findProduct({
+        _id: productId,
+        status: status.ACTIVE,
+      });
+      if (!productData) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+
+      let obj = {
+        userId: user._id,
+        productId: productData._id,
+        reasonType: reasonType,
+        description: description,
+      };
+      let data = await createReport(obj);
+      return res.json(new response(data, responseMessage.REPORT_ADDED));
+    } catch (error) {
+      console.log(error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/createReportSeller:
+   *   post:
+   *     tags:
+   *       - REPORT
+   *     description: createReportSeller
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: user token
+   *         in: header
+   *         required: true
+   *       - name: sellerId
+   *         description: sellerId
+   *         in: formData
+   *         required: false
+   *       - name: reasonType
+   *         description: reasonType
+   *         in: formData
+   *         enum: ["Duplicate ad","Inappropriate Content","Misleading Information","Offensive Language","Scam OR Fraud","Other (Please Specify)"]
+   *       - name: description
+   *         description: description
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Report added successfully.
+   *       404:
+   *         description: User not found.
+   */
+  async createReportSeller(req, res, next) {
+    try {
+      const { sellerId, reasonType, description } = req.body;
+
+      let user = await findUser({ _id: req.userId, status: status.ACTIVE });
+      if (!user) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      const sellerData = await findUser({
+        _id: sellerId,
+        status: status.ACTIVE,
+      });
+      if (!sellerData) {
+        throw apiError.notFound(responseMessage.SELLER_NOT_FOUND);
+      }
+
+      let obj = {
+        userId: user._id,
+        sellerId: sellerData._id,
+        reasonType: reasonType,
+        description: description,
+      };
+
+      let data = await createReport(obj);
+      return res.json(new response(data, responseMessage.REPORT_ADDED));
+    } catch (error) {
+      console.log(error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/sellerProfile:
+   *   post:
+   *     summary: sellerProfile
+   *     tags:
+   *       - PRODUCT
+   *     description: sellerProfile
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: _id
+   *         in: formData
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async sellerProfile(req, res, next) {
+    var validationSchema = Joi.object({
+      _id: Joi.string().required(),
+    });
+    try {
+      var validatedBody = await validationSchema.validateAsync(req.body);
+
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      // Create a new Date instance for today's date
+      const today = new Date();
+      let userData = await findUser({
+        _id: validatedBody._id,
+        status: { $ne: status.DELETE },
+      });
+      const userFollowStatus = userData.followers.includes(req.userId);
+      const specificDate = userData.createdAt;
+      const timeDifferenceMs = today - specificDate;
+
+      // Calculate the difference between the two dates in days
+      const timeDifferenceDays = Math.floor(
+        timeDifferenceMs / (24 * 60 * 60 * 1000)
+      );
+      const timeStatus = `Joined ${timeDifferenceDays} days ago`;
+
+      // Checking if Login user is already chat with seller or not if is yes then pass the chatId
+      let checkChatIsExist = await findChat({
+        $or: [
+          {
+            $and: [{ senderId: req.userId }, { receiverId: validatedBody._id }],
+          },
+          {
+            $and: [{ senderId: validatedBody._id }, { receiverId: req.userId }],
+          },
+        ],
+      });
+
+      let obj = {
+        profilePic: userData.profilePic,
+        followers: userData.followers,
+        followersCount: userData.followersCount,
+        status: userFollowStatus,
+        following: userData.following,
+        followingCount: userData.followingCount,
+        name: userData.name,
+        joinedDate: timeStatus,
+        createdAt: userData.createdAt,
+        updatedAt: userData.updatedAt,
+        chatId: checkChatIsExist ? checkChatIsExist._id : null,
+      };
+      return res.json(new response(obj, responseMessage.DETAILS_FETCHED));
+    } catch (error) {
+      console.log(error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/listedProduct:
+   *   post:
+   *     tags:
+   *       - PRODUCT
+   *     description: listedProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: _id
+   *         in: formData
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async listedProduct(req, res, next) {
+    var validationSchema = Joi.object({
+      _id: Joi.string().required(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      const productListDATA = await productList({ userId: validatedBody._id });
+      return res.json(
+        new response(productListDATA, responseMessage.PRODUCT_FOUND)
+      );
+    } catch (error) {
+      console.log("error", error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/searchProductApi:
+   *   post:
+   *     tags:
+   *       - PRODUCT
+   *     description: searchProductApi
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: categoryName
+   *         description: categoryName
+   *         in: formData
+   *         required: false
+   *       - name: subCategoryName
+   *         description: subCategoryName
+   *         in: formData
+   *         required: false
+   *       - name: productName
+   *         description: productName
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async searchProductApi(req, res, next) {
+    var validationSchema = Joi.object({
+      categoryName: Joi.string().optional(),
+      subCategoryName: Joi.string().optional(),
+      productName: Joi.string().optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let categoryRes = await findCategory({
+        categoryName: validatedBody.categoryName,
+        status: { $ne: status.DELETE },
+      });
+      if (!categoryRes) {
+        throw apiError.notFound(responseMessage.CATEGORY_NOT_FOUND);
+      }
+
+      let subCategoryRes = await findSubCategory({
+        subCategoryName: validatedBody.subCategoryName,
+        status: { $ne: status.DELETE },
+      });
+      if (!subCategoryRes) {
+        throw apiError.conflict(responseMessage.SUBCATEGORY_NOT_FOUND);
+      }
+
+      let productRes = await findProduct({
+        productName: validatedBody.productName,
+        status: { $ne: status.DELETE },
+      });
+      if (!productRes) {
+        throw apiError.conflict(responseMessage.PRODUCT_NOT_FOUND);
+      }
+
+      return res.json(new response(productRes, responseMessage.PRODUCT_FOUND));
+    } catch (error) {
+      console.log("error", error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/serchProduct:
+   *   get:
+   *     summary: serch listed product
+   *     tags:
+   *       -  SEARCH PRODUCT
+   *     description: serch List of all Product
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: search
+   *         description: search
+   *         in: query
+   *         required: false
+   *       - name: fromDate
+   *         description: fromDate
+   *         in: query
+   *         required: false
+   *       - name: toDate
+   *         description: toDate
+   *         in: query
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         type: integer
+   *         required: false
+   *       - name: location
+   *         description: location
+   *         in: query
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async serchProduct(req, res, next) {
+    const validationSchema = Joi.object({
+      search: Joi.string().allow("").optional(),
+      fromDate: Joi.string().allow("").optional(),
+      toDate: Joi.string().allow("").optional(),
+      page: Joi.number().allow("").optional(),
+      limit: Joi.number().allow("").optional(),
+      location: Joi.string().allow("").optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+      let dataResults = await paginateSearchForProduct(validatedBody);
+      if (dataResults.docs.length == 0) {
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+      }
+      return res.json(new response(dataResults, responseMessage.DATA_FOUND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/addRecentSearch:
+   *   post:
+   *     tags:
+   *       - SEARCH PRODUCT
+   *     description: addRecentSearch
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: serchText
+   *         description: serchText
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async addRecentSearch(req, res, next) {
+    const validationSchema = Joi.object({
+      serchText: Joi.string().allow("").optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+      validatedBody.userId = req.userId;
+      await createSearch(validatedBody);
+      return res.json(new response({}, responseMessage.DATA_ADDED));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/getRecentSearch:
+   *   get:
+   *     tags:
+   *       - SEARCH PRODUCT
+   *     description: getRecentSearch
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async getRecentSearch(req, res, next) {
+    try {
+      let searchData = await SearchList({ userId: req.userId });
+      return res.json(new response(searchData, responseMessage.DATA_ADDED));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/checkStatus:
+   *   get:
+   *     tags:
+   *       - PRODUCT
+   *     description: checkStatus
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: productId
+   *         description: productId
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *       404:
+   *         description: User not found || Data not found.
+   *       501:
+   *         description: Something went wrong!
+   */
+  async checkStatus(req, res, next) {
+    var validationSchema = Joi.object({
+      productId: Joi.string().required(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let obj = {};
+
+      let productResult = await findProduct1({
+        _id: validatedBody.productId,
+        status: { $ne: status.DELETE },
+      });
+      if (!productResult) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+
+      obj = JSON.parse(JSON.stringify(productResult));
+
+      let wishlistResult = await findWishlist({
+        userId: req.userId,
+        productId: validatedBody.productId,
+        status: { $ne: status.DELETE },
+      });
+      if (wishlistResult) {
+        obj.isWishlist = true;
+      } else {
+        obj.isWishlist = false;
+      }
+      return res.json(new response(obj, responseMessage.PRODUCT_FOUND));
+    } catch (error) {
+      console.log("error", error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /product/sortingAndSearchingProduct:
+   *   post:
+   *     tags:
+   *       - SORTING AND SEARCHING PRODUCT
+   *     description: sortingAndSearchingProduct
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: search
+   *         description: search
+   *         in: query
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         required: false
+   *       - name: priceStatus
+   *         description: priceStatus
+   *         in: query
+   *         enum: [lowtohigh, hightolow]
+   *         required: false
+   *       - name: categoryName
+   *         description: categoryName
+   *         in: query
+   *         required: false
+   *       - name: subCategoryName
+   *         description: subCategoryName
+   *         in: query
+   *         required: false
+   *       - name: dateStatus
+   *         description: dateStatus
+   *         in: query
+   *         enum: [newest, oldest]
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *       404:
+   *         description: User not found || Data not found.
+   *       501:
+   *         description: Something went wrong!
+   */
+  async sortingAndSearchingProduct(req, res, next) {
+    const validationSchema = Joi.object({
+      search: Joi.string().allow("").optional(),
+      page: Joi.number().allow("").optional(),
+      limit: Joi.number().allow("").optional(),
+      priceStatus: Joi.string().allow("").optional(),
+      categoryName: Joi.string().allow("").optional(),
+      subCategoryName: Joi.string().allow("").optional(),
+      dateStatus: Joi.string().allow("").optional(),
+    });
+
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+      let {
+        search,
+        page,
+        limit,
+        priceStatus,
+        categoryName,
+        subCategoryName,
+        dateStatus,
+      } = validatedBody;
+      let sort = "createdAt";
+      let sortOrder = 1;
+      const matchStage = {
+        status: "ACTIVE",
+        approveStatus: "APPROVED",
+        paymentStatus: "APPROVED",
+      };
+      const sortStage = {
+        [sort]: sortOrder,
+      };
+      const pipeline = [{ $match: matchStage }, { $sort: sortStage }];
+
+      if (search) {
+        pipeline.push({
+          $match: {
+            productName: {
+              $regex: search ? `^${search}` : "",
+              $options: "i",
+            },
+          },
+        });
+      }
+      if (categoryName) {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "categories",
+              localField: "categoryId",
+              foreignField: "_id",
+              as: "category",
+            },
+          },
+          {
+            $unwind: {
+              path: "$category",
+              preserveNullAndEmptyArrays: false,
+            },
+          },
+          {
+            $match: {
+              "category.categoryName": {
+                $regex: categoryName ? `^${categoryName}` : "",
+                $options: "i",
+              },
+            },
+          }
+        );
+      }
+
+      if (subCategoryName) {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "subcategories",
+              localField: "subCategoryId",
+              foreignField: "_id",
+              as: "subcategory",
+            },
+          },
+          {
+            $unwind: {
+              path: "$subcategory",
+              preserveNullAndEmptyArrays: false,
+            },
+          },
+          {
+            $match: {
+              "subcategory.subCategoryName": {
+                $regex: subCategoryName ? `^${subCategoryName}` : "",
+                $options: "i",
+              },
+            },
+          }
+        );
+      }
+
+      let data = await Product.aggregate(pipeline);
+
+      if (priceStatus == "lowtohigh") {
+        data = data.sort((a, b) => a.price - b.price);
+      }
+      if (priceStatus == "hightolow") {
+        data = data.sort((a, b) => b.price - a.price);
+      }
+
+      if (dateStatus == "newest") {
+        data = data.sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+      }
+      if (dateStatus == "oldest") {
+        data = data.sort(
+          (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+        );
+      }
+
+      let totalCount = data.length;
+
+      // Calculate pagination values
+      const currentPage = page ? parseInt(page) : 1;
+      const perPage = limit ? parseInt(limit) : 10;
+      const totalPages = Math.ceil(totalCount / perPage);
+      const skip = (currentPage - 1) * perPage;
+
+      // Apply pagination
+      data = data.slice(skip, skip + perPage);
+
+      return res.json(
+        new response(
+          {
+            data: data,
+            currentPage: currentPage,
+            perPage: perPage,
+            totalPages: totalPages,
+            totalCount: totalCount,
+          },
+          responseMessage.DATA_FOUND
+        )
+      );
+    } catch (error) {
+      console.log("error", error);
+      return next(error);
+    }
+  }
+}
+export default new productController();

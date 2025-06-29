@@ -1,0 +1,588 @@
+import productModel from "../../../models/product";
+import status from "../../../enums/status";
+import mongoose from "mongoose";
+
+const productServices = {
+  createProduct: async (insertObj) => {
+    return await productModel.create(insertObj);
+  },
+
+  findProduct: async (query) => {
+    return await productModel
+      .findOne(query)
+      .populate("categoryId subCategoryId userId");
+  },
+
+  findProduct1: async (query) => {
+    return await productModel.findOne(query).populate("userId");
+  },
+  countDocuments: async (query) => {
+    return await productModel.findOne(query);
+  },
+  findOneProduct: async (query) => {
+    return await productModel.findOne(query);
+  },
+
+  findAllProduct: async (query) => {
+    return await productModel.find(query).sort({ createdAt: -1 });
+  },
+
+  findAllProductNew: async (query, startIndex, limit) => {
+    return await productModel.find(query).skip(startIndex).limit(limit);
+  },
+  updateProduct: async (query, updateObj) => {
+    return await productModel.findByIdAndUpdate(query, updateObj, {
+      new: true,
+    });
+  },
+
+  deleteProduct: async (query) => {
+    return await productModel.deleteMany(query);
+  },
+
+  deleteProducts: async (query) => {
+    return await productModel.deleteMany(query);
+  },
+
+  countProduct: async (query) => {
+    return await productModel.countDocuments(query);
+  },
+
+  productList: async (query) => {
+    return await productModel
+      .find(query)
+      .populate("userId")
+      .sort({ createdAt: -1 });
+  },
+  featureProductsList: async (validatedBody) => {
+    // return await productModel.find(query);
+    let query = { featureProduct: true };
+    const { page, limit } = validatedBody;
+    let options = {
+      page: page || 1,
+      limit: limit || 10,
+      sort: { createdAt: -1 },
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  recentProductsList: async (validatedBody) => {
+    let query = {
+      approveStatus: "APPROVED",
+      paymentStatus: "APPROVED",
+      status: "ACTIVE",
+    };
+
+    if (validatedBody.userId) {
+      query.userId = { $ne: validatedBody.userId };
+    }
+
+    const { page, limit } = validatedBody;
+    let options = {
+      page: page || 1,
+      limit: limit || 10,
+      sort: { createdAt: -1 },
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  productListWithPaginationNew: async (validatedBody) => {
+    let query = {
+      approveStatus: "APPROVED",
+      paymentStatus: "APPROVED",
+      status: "ACTIVE",
+    };
+
+    if (validatedBody.userId) {
+      query.userId = { $ne: validatedBody.userId };
+    }
+    const { page, limit } = validatedBody;
+    let options = {
+      page: page || 1,
+      limit: limit || 10,
+      sort: { createdAt: -1 },
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  productListWithPagination: async (validatedBody) => {
+    let query = { status: { $nin: [status.DELETE, "SOLD"] } };
+    const {
+      search,
+      fromDate,
+      toDate,
+      page,
+      limit,
+      categoryId,
+      subCategoryId,
+      approveStatus,
+      productStatus,
+      vendorId,
+    } = validatedBody;
+    if (search) {
+      query.$or = [{ productName: { $regex: search, $options: "i" } }];
+    }
+    if (categoryId) {
+      query.categoryId = categoryId;
+    }
+    if (subCategoryId) {
+      query.subCategoryId = subCategoryId;
+    }
+    if (approveStatus) {
+      query.approveStatus = approveStatus;
+    }
+    if (productStatus) {
+      query.status = productStatus;
+    }
+    if (vendorId) {
+      query.userId = vendorId;
+    }
+    if (fromDate && !toDate) {
+      query.createdAt = {
+        $gte: new Date(new Date(fromDate).setHours(0, 0)).toISOString(),
+      };
+    }
+    if (!fromDate && toDate) {
+      query.createdAt = {
+        $lte: new Date(new Date(toDate).setHours(23, 59)).toISOString(),
+      };
+    }
+    if (fromDate && toDate) {
+      query.$and = [
+        {
+          createdAt: {
+            $gte: new Date(new Date(fromDate).setHours(0, 0)).toISOString(),
+          },
+        },
+        {
+          createdAt: {
+            $lte: new Date(new Date(toDate).setHours(23, 59)).toISOString(),
+          },
+        },
+      ];
+    }
+    let options = {
+      page: page || 1,
+      limit: limit || 10,
+      sort: { createdAt: -1 },
+      populate: "categoryId subCategoryId userId",
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  ParticularProductListWithPagination: async (validatedBody) => {
+    let query = {
+      status: { $ne: status.DELETE },
+      userId: validatedBody.userId,
+    };
+    const {
+      search,
+      fromDate,
+      toDate,
+      page,
+      limit,
+      categoryId,
+      subCategoryId,
+      approveStatus,
+    } = validatedBody;
+    if (search) {
+      query.$or = [{ productName: { $regex: search, $options: "i" } }];
+    }
+    if (categoryId) {
+      query.categoryId = categoryId;
+    }
+    if (subCategoryId) {
+      query.subCategoryId = subCategoryId;
+    }
+    if (approveStatus) {
+      query.approveStatus = approveStatus;
+    }
+    if (fromDate && !toDate) {
+      query.createdAt = {
+        $gte: new Date(new Date(fromDate).setHours(0, 0)).toISOString(),
+      };
+    }
+    if (!fromDate && toDate) {
+      query.createdAt = {
+        $lte: new Date(new Date(toDate).setHours(23, 59)).toISOString(),
+      };
+    }
+    if (fromDate && toDate) {
+      query.$and = [
+        {
+          createdAt: {
+            $gte: new Date(new Date(fromDate).setHours(0, 0)).toISOString(),
+          },
+        },
+        {
+          createdAt: {
+            $lte: new Date(new Date(toDate).setHours(23, 59)).toISOString(),
+          },
+        },
+      ];
+    }
+    let options = {
+      page: page || 1,
+      limit: limit || 10,
+      sort: { createdAt: -1 },
+      populate: "categoryId subCategoryId userId",
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  paginateSearchForProduct: async (validatedBody) => {
+    let query = {
+      approveStatus: "APPROVED",
+      paymentStatus: "APPROVED",
+      status: "ACTIVE",
+    };
+    const { search, fromDate, toDate, page, limit, location } = validatedBody;
+    if (search) {
+      query.$or = [{ productName: { $regex: search, $options: "i" } }];
+    }
+    if (location) {
+      query.location = { $regex: location, $options: "i" };
+    }
+
+    if (fromDate && !toDate) {
+      query.createdAt = {
+        $gte: new Date(new Date(fromDate).toISOString().slice(0, 10)),
+      };
+    }
+    if (!fromDate && toDate) {
+      query.createdAt = {
+        $lte: new Date(
+          new Date(toDate).toISOString().slice(0, 10) + "MMM DD, YYYY hh:mm A"
+        ),
+      };
+    }
+    if (fromDate && toDate) {
+      query.$and = [
+        {
+          createdAt: {
+            $gte: new Date(new Date(fromDate).toISOString().slice(0, 10)),
+          },
+        },
+        {
+          createdAt: {
+            $lte: new Date(
+              new Date(toDate).toISOString().slice(0, 10) + "MMM DD, YYYY hh:mm A"
+            ),
+          },
+        },
+      ];
+    }
+    let options = {
+      page: page || 1,
+      limit: limit || 15,
+      sort: { createdAt: -1 },
+      // select: '-ethAccount.privateKey'
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  findMyLikesProduct: async (validatedBody, _id) => {
+    let query = { likesUser: mongoose.Types.ObjectId(_id) };
+    const { fromDate, toDate, page, limit } = validatedBody;
+
+    if (fromDate && !toDate) {
+      query.createdAt = {
+        $gte: new Date(new Date(fromDate).toISOString().slice(0, 10)),
+      };
+    }
+    if (!fromDate && toDate) {
+      query.createdAt = {
+        $lte: new Date(
+          new Date(toDate).toISOString().slice(0, 10) + "MMM DD, YYYY hh:mm A"
+        ),
+      };
+    }
+    if (fromDate && toDate) {
+      query.$and = [
+        {
+          createdAt: {
+            $gte: new Date(new Date(fromDate).toISOString().slice(0, 10)),
+          },
+        },
+        {
+          createdAt: {
+            $lte: new Date(
+              new Date(toDate).toISOString().slice(0, 10) + "MMM DD, YYYY hh:mm A"
+            ),
+          },
+        },
+      ];
+    }
+    let options = {
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 15,
+      sort: { createdAt: -1 },
+      populate: "categoryId userId likesUser subCategoryId",
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  listProductV2: async (query) => {
+    return await productModel
+      .find(query)
+      .sort({ createdAt: -1 })
+      .populate("userId");
+  },
+
+  updateProductMany: async (query, updateObj) => {
+    return await productModel.updateMany(query, updateObj, { multi: true });
+  },
+
+  paginateProductSearch: async (validatedBody) => {
+    let query = { status: { $ne: status.DELETE } };
+    const { search, fromDate, toDate, page, limit, categoryType } =
+      validatedBody;
+    if (search) {
+      query.$or = [
+        { categoryName: { $regex: search, $options: "i" } },
+        { categoryType: { $regex: search, $options: "i" } },
+      ];
+    }
+    if (categoryType) {
+      query.categoryType = categoryType;
+    }
+    if (fromDate && !toDate) {
+      query.createdAt = { $gte: fromDate };
+    }
+    if (!fromDate && toDate) {
+      query.createdAt = { $lte: toDate };
+    }
+    if (fromDate && toDate) {
+      query.$and = [
+        { createdAt: { $gte: fromDate } },
+        { createdAt: { $lte: toDate } },
+      ];
+    }
+    let options = {
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 15,
+      sort: { createdAt: -1 },
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  paginateSearch1: async (validatedBody) => {
+    let query = {};
+    const {
+      search,
+      fromDate,
+      toDate,
+      page,
+      limit,
+      priceStatus,
+      dateStatus,
+      categoryName,
+      subCategoryName,
+    } = validatedBody;
+    let sortBy = "createdAt";
+    let sortway = -1;
+    if (search) {
+      query.$or = [{ productName: { $regex: search, $options: "i" } }];
+    }
+
+    if (priceStatus) {
+      if (priceStatus == "lowtohigh") {
+        sortway = 1;
+        sortBy = "price";
+      } else if (priceStatus == "hightolow") {
+        sortway = -1;
+        sortBy = "price";
+      }
+    }
+
+    if (dateStatus) {
+      if (dateStatus == "newest") {
+        sortway = -1;
+        sortBy = "createdAt";
+      } else if (dateStatus == "oldest") {
+        sortway = 1;
+        sortBy = "createdAt";
+      }
+    }
+
+    const pipeline = [
+      {
+        $sort: {
+          [sort]: sortOrder,
+        },
+      },
+    ];
+
+    if (categoryName) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "categories",
+            localField: "categoryId",
+            foreignField: "_id",
+            as: "category",
+          },
+        },
+        {
+          $unwind: {
+            path: "$category",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+        {
+          $match: {
+            "category.categoryName": {
+              $regex: categoryName ? `^${categoryName}` : "",
+              $options: "i",
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            productName: 1,
+            description: 1,
+            price: 1,
+            image: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            categoryName: "$category.categoryName",
+            subCategoryName: "$category.subCategoryName",
+            categoryImage: "$category.image",
+          },
+        }
+      );
+    }
+
+    if (subCategoryName) {
+      pipeline.push([
+        {
+          $lookup: {
+            from: "subcategories",
+            localField: "subCategoryId",
+            foreignField: "_id",
+            as: "subCat",
+          },
+        },
+        {
+          $unwind: {
+            path: "$subCat",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+        {
+          $match: {
+            "subCat.subCategoryName": {
+              $regex: subCategoryName ? `^${subCategoryName}` : "",
+              $options: "i",
+            },
+          },
+        },
+      ]);
+    }
+
+    if (fromDate && !toDate) {
+      query.createdAt = {
+        $gte: new Date(new Date(fromDate).toISOString().slice(0, 10)),
+      };
+    }
+    if (!fromDate && toDate) {
+      query.createdAt = {
+        $lte: new Date(
+          new Date(toDate).toISOString().slice(0, 10) + "MMM DD, YYYY hh:mm A"
+        ),
+      };
+    }
+    if (fromDate && toDate) {
+      query.$and = [
+        {
+          createdAt: {
+            $gte: new Date(new Date(fromDate).toISOString().slice(0, 10)),
+          },
+        },
+        {
+          createdAt: {
+            $lte: new Date(
+              new Date(toDate).toISOString().slice(0, 10) + "MMM DD, YYYY hh:mm A"
+            ),
+          },
+        },
+      ];
+    }
+    let options = {
+      page: page || 1,
+      limit: limit || 15,
+      sort: { [sortBy]: sortway },
+    };
+    return await productModel.paginate(query, options);
+  },
+
+  paginateSortingForProduct: async (query) => {
+    return await productModel.aggregate(query);
+  },
+  deleteallProducts: async (query) => {
+    return await productModel.deleteMany(query);
+  },
+  FindAllPaginateSearchForProduct: async (validatedBody) => {
+    console.log("validatedBody", validatedBody);
+    let query = { paymentStatus: "APPROVED", userId: validatedBody.userId };
+    const {
+      search,
+      fromDate,
+      toDate,
+      page,
+      limit,
+      categoryId,
+      subCategoryId,
+      status,
+      approveStatus,
+    } = validatedBody;
+    if (search) {
+      query.$or = [{ productName: { $regex: search, $options: "i" } }];
+    }
+    if (categoryId) {
+      query.categoryId = categoryId;
+    }
+    if (subCategoryId) {
+      query.subCategoryId = subCategoryId;
+    }
+    if (status) {
+      query.status = status;
+    }
+    if (approveStatus) {
+      query.approveStatus = approveStatus;
+    }
+    if (fromDate && !toDate) {
+      query.createdAt = {
+        $gte: new Date(new Date(fromDate).setHours(0, 0)).toISOString(),
+      };
+    }
+    if (!fromDate && toDate) {
+      query.createdAt = {
+        $lte: new Date(new Date(toDate).setHours(23, 59)).toISOString(),
+      };
+    }
+    if (fromDate && toDate) {
+      query.$and = [
+        {
+          createdAt: {
+            $gte: new Date(new Date(fromDate).setHours(0, 0)).toISOString(),
+          },
+        },
+        {
+          createdAt: {
+            $lte: new Date(new Date(toDate).setHours(23, 59)).toISOString(),
+          },
+        },
+      ];
+    }
+    let options = {
+      page: page || 1,
+      limit: limit || 10,
+      sort: { createdAt: -1 },
+    };
+    return await productModel.paginate(query, options);
+  },
+};
+
+module.exports = { productServices };

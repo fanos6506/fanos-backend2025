@@ -1,0 +1,7 @@
+export default Object.freeze({
+  PENDING: "PENDING",
+  COMPLETE: "COMPLETE",
+  DELIVERED: "DELIVERED",
+  CANCEL: "CANCEL",
+  APPROVE: "APPROVE",
+});

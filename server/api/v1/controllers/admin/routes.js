@@ -1,0 +1,35 @@
+import Express from "express";
+import controller from "./controller.js";
+import auth from "../../../../helper/auth.js";
+import upload from "../../../../helper/uploadHandler.js";
+
+export default Express.Router()
+    .use(Express.json())
+    .use(Express.urlencoded({ extended: true }))
+    .post("/login", controller.login)
+    .put("/forgotPassword", controller.forgotPassword)
+    .put("/resendOtp", controller.resendOtp)
+    .post("/verifyOTP", controller.verifyOTP)
+    .put("/updateEmail", controller.updateEmail)
+    .use(auth.verifyToken)
+    .use(auth.isAdmin)
+    .get("/listUser", controller.listUser)
+    .get("/dashboard", controller.dashboard)
+    .get("/getPaymentDatabyUserId", controller.getPaymentDatabyUserId)
+    .get("/getPaymentDeatilsDatabyAdmin", controller.getPaymentDeatilsDatabyAdmin)
+    .get("/getPaymentDeatilsOfProductPurchaseAndAddProduct", controller.getPaymentDeatilsOfProductPurchaseAndAddProduct)
+    .get("/viewUserProfile", controller.viewUserProfile)
+    .get("/viewAdminProfile", controller.viewAdminProfile)
+    .get("/viewUserlist", controller.viewUserlist)
+    .put("/blockUnblockUser", controller.blockUnblockUser)
+    .delete("/deleteUser", controller.deleteUser)
+    .delete("/deleteAllUsers", controller.deleteAllUsers)
+    .delete("/deleteProduct", controller.deleteProduct)
+    .delete("/deleteProducts", controller.deleteProducts)
+    .put("/websiteMaintainance", controller.websiteMaintainance)
+    .put("/updateProductApproveStatus", controller.updateProductApproveStatus)
+    .post("/sendNotificationToUser", controller.sendNotificationToUser)
+    .post("/sendNotificationToAllUser", controller.sendNotificationToAllUser)
+    .get("/getReportList", controller.getReportList)
+    .get("/getReportListByUserId", controller.getReportListByUserId)
+    .delete("/deleteColelctionofCoupon", controller.deleteColelctionofCoupon);

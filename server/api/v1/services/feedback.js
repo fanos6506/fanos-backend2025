@@ -1,0 +1,81 @@
+import feedbackModel from "../../../models/feedback.js";
+
+const feedbackServices = {
+  createFeedbackContent: async (insertObj) => {
+    return await feedbackModel.create(insertObj);
+  },
+
+  findFeedbackContent: async (query) => {
+    return await feedbackModel.find(query);
+  },
+
+  findOneFeedback: async (query) => {
+    return await feedbackModel.findOne(query);
+  },
+
+  updateFeedbackContent: async (query, updateObj) => {
+    return await feedbackModel.findOneAndUpdate(query, updateObj, {
+      new: true,
+    });
+  },
+
+  FeedbackContentList: async () => {
+    return await feedbackModel.find({});
+  },
+
+  FeedbackList: async () => {
+    return await termsModel.find({});
+  },
+
+  findFeedbacks: async (query) => {
+    return await feedbackModel.count(query);
+  },
+  paginateSearchFeedbacks: async (validatedBody) => {
+    let query = {};
+    const { search, fromDate, toDate, page, limit } = validatedBody;
+    if (search) {
+      query.$or = [
+        { email: { $regex: search, $options: "i" } },
+        { message: { $regex: search, $options: "i" } },
+        { name: { $regex: search, $options: "i" } },
+      ];
+    }
+    if (fromDate && !toDate) {
+      query.createdAt = {
+        $gte: new Date(new Date(fromDate).toISOString().slice(0, 10)),
+      };
+    }
+    if (!fromDate && toDate) {
+      // query.createdAt = { $lte: toDate };
+      query.createdAt = {
+        $lte: new Date(
+          new Date(toDate).toISOString().slice(0, 10) + "MMM DD, YYYY hh:mm A"
+        ),
+      };
+    }
+    if (fromDate && toDate) {
+      query.$and = [
+        {
+          createdAt: {
+            $gte: new Date(new Date(fromDate).toISOString().slice(0, 10)),
+          },
+        },
+        {
+          createdAt: {
+            $lte: new Date(
+              new Date(toDate).toISOString().slice(0, 10) + "MMM DD, YYYY hh:mm A"
+            ),
+          },
+        },
+      ];
+    }
+    let options = {
+      page: page || 1,
+      limit: limit || 15,
+      sort: { createdAt: -1 },
+    };
+    return await feedbackModel.paginate(query, options);
+  },
+};
+
+export default feedbackServices ;

@@ -1,0 +1,38 @@
+{
+  "port": 3032,
+  "hostAddress": "172.16.1.243:3032",
+  "databaseHost": "localhost",
+  "databasePort": "27017",
+  "databaseName": "calisdiary",
+  "jwtsecret": "nodejwt",
+  "jwtresetsecret": "nodejwt",
+  "nodemailer": {
+    "service": "gmail",
+    "email": "fanos6506@gmail.com",
+    "password": "ahznimcvmhjokzgy"
+  },
+  "jwtOptions": {
+    "expiresIn": "24h"
+  },
+  "swaggerDefinition": {
+    "info": {
+      "title": "classified-ads",
+      "version": "2.0",
+      "description": "classified-ads API Docs"
+    },
+    "basePath": "/api/v1",
+    "securityDefinitions": {
+      "tokenauth": {
+        "type": "apiKey",
+        "name": "Authorization",
+        "in": "header"
+      }
+    }
+  },
+  "cloudinary": {
+    "cloud_name": "dgskkodvm",
+    "api_key": "638554831276168",
+    "api_secret": "SV14YRLHeV-vstEkJp3yNwwnQcg"
+  },
+  "serverKey":"AAAAvwzso1E:APA91bGW6LKyzyLgEq5zdzPUYyIYEom5qlDmRnvvPR6qMRexREcEcM_HFMEUwuMvvW1CNLftipxfUgbypSSdTp2HaIlNCJKnpdBO-tBNhNk4zTWRD2cQDyRNT-x_rnlSvfoR0eRSbOup"
+}

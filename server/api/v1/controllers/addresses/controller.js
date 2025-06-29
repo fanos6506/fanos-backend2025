@@ -1,0 +1,354 @@
+import Joi from "joi";
+import * as _ from 'lodash';
+import apiError from "../../../../helper/apiError.js";
+import response from "../../../../../assets/response.js";
+import responseMessage from "../../../../../assets/responseMessage.js";
+import status from "../../../../enums/status.js";
+import commonFunction from "../../../../helper/util.js";
+
+import  userServices  from "../../services/user.js";
+const { findUser } = userServices;
+
+import addressesService  from "../../services/addresses.js";
+const {
+  createAddresses,
+  findAddresses,
+  findListAddresses,
+  updateAddresses,
+  deleteAddresses,
+  paginateAddressSearch,
+} = addressesService;
+
+import  notificationServices  from "../../services/notification.js";
+const { notificationCreate } = notificationServices;
+
+const daysOfWeek = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+export class addressesController {
+  /**
+   * @swagger
+   * /addresses/createAddress:
+   *   post:
+   *     summary: User Create Addresses
+   *     tags:
+   *       - Addresses
+   *     description: User Create Addresses
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: createAddress
+   *         description: createAddress
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/createAddress'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async createAddress(req, res, next) {
+    const validationSchema = Joi.object({
+      name: Joi.string().required(),
+      countryCode: Joi.string().required(),
+      mobileNumber: Joi.string().required(),
+      addressType: Joi.string().required(),
+      addressLine1: Joi.string().required(),
+      addressLine2: Joi.string().required(),
+      country: Joi.string().required(),
+      state: Joi.string().required(),
+      city: Joi.string().required(),
+      pincode: Joi.string().required(),
+    });
+    try {
+      const validationBody = await validationSchema.validateAsync(req.body);
+
+      var userTokenRes = await findUser({ _id: req.userId });
+      if (!userTokenRes)
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+
+      validationBody.userId = req.userId;
+      const result = await createAddresses(validationBody);
+      const title = "Address added";
+      const body = `Your New Address added successfully.`;
+      await notificationCreate({
+        userId: userTokenRes._id,
+        title: title,
+        body: body,
+        currentTime: new Date().toISOString(),
+        currentDay: daysOfWeek[new Date().getDay()],
+      });
+      if (userTokenRes.deviceToken && userTokenRes.deviceToken != "") {
+        await commonFunction.pushNotification(
+          userTokenRes.deviceToken,
+          title,
+          body
+        );
+      }
+      return res.json(new response(result, responseMessage.ADDRESS_CREATE));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /addresses/updateAddress:
+   *   put:
+   *     summary: User create Addresses
+   *     tags:
+   *       - Addresses
+   *     description: User Ureate Addresses
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: updateAddress
+   *         description: updateAddress
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/updateAddress'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async updateAddress(req, res, next) {
+    const validationSchema = Joi.object({
+      _id: Joi.string().required(),
+      name: Joi.string().optional(),
+      countryCode: Joi.string().optional(),
+      mobileNumber: Joi.string().optional(),
+      addressType: Joi.string().optional(),
+      addressLine1: Joi.string().optional(),
+      addressLine2: Joi.string().optional(),
+      country: Joi.string().optional(),
+      city: Joi.string().optional(),
+      state: Joi.string().optional(),
+      pincode: Joi.string().optional(),
+    });
+    try {
+      const validationBody = await validationSchema.validateAsync(req.body);
+      validationBody.userId = req.userId;
+
+      const address = await findAddresses({ _id: validationBody._id });
+      if (!address) {
+        throw apiError.notFound(responseMessage.ADDRESS_NOT_FOUND);
+      }
+
+      const result = await updateAddresses(
+        { _id: validationBody._id },
+        { $set: validationBody }
+      );
+      const title = "Address updated";
+      const body = `Your address information has been successfully updated.`;
+      await notificationCreate({
+        userId: result.userId,
+        title: title,
+        body: body,
+        currentTime: new Date().toISOString(),
+        currentDay: daysOfWeek[new Date().getDay()],
+      });
+      let userTokenRes = await findUser({ _id: result.userId });
+      if (userTokenRes.deviceToken && userTokenRes.deviceToken != "") {
+        await commonFunction.pushNotification(
+          userTokenRes.deviceToken,
+          title,
+          body
+        );
+      }
+      return res.json(new response(result, responseMessage.ADDRESS_UPDATE));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /addresses/deleteAddress:
+   *   delete:
+   *     summary: User Delete Addresses
+   *     tags:
+   *       - Addresses
+   *     description: User Delete Addresses
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: addressId
+   *         description: addressId
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async deleteAddress(req, res, next) {
+    const validationSchema = Joi.object({
+      addressId: Joi.string().required(),
+    });
+    try {
+      const validationBody = await validationSchema.validateAsync(req.query);
+
+      const address = await findAddresses({ _id: validationBody.addressId });
+      if (!address) {
+        throw apiError.notFound(responseMessage.ADDRESS_NOT_FOUND);
+      }
+
+      const result = await deleteAddresses({ _id: address._id });
+      const title = "Address removed";
+      const body = `Your address has been successfully removed.`;
+      await notificationCreate({
+        userId: address.userId,
+        title: title,
+        body: body,
+        currentTime: new Date().toISOString(),
+        currentDay: daysOfWeek[new Date().getDay()],
+      });
+      const userTokenRes = await findUser({ _id: address.userId });
+      console.log("address.userId", address);
+      if (userTokenRes.deviceToken && userTokenRes.deviceToken != "") {
+        await commonFunction.pushNotification(
+          userTokenRes.deviceToken,
+          title,
+          body
+        );
+      }
+      return res.json(new response(result, responseMessage.ADDRESS_DELETE));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /addresses/getAddressList:
+   *   get:
+   *     summary: Get Address List
+   *     tags:
+   *       - Addresses
+   *     description: Get Address List
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: search
+   *         description: search
+   *         in: query
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         required: false
+   *       - name: fromDate
+   *         description: fromDate
+   *         in: query
+   *         required: false
+   *       - name: toDate
+   *         description: toDate
+   *         in: query
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Data found successfully.
+   *       404:
+   *         description: User not found || Data not found.
+   *       501:
+   *         description: Something went wrong!
+   */
+  async getAddressList(req, res, next) {
+    const validationSchema = Joi.object({
+      search: Joi.string().optional(),
+      fromDate: Joi.string().optional(),
+      toDate: Joi.string().optional(),
+      page: Joi.number().optional(),
+      limit: Joi.number().optional(),
+    });
+    try {
+      let validatedBody = await validationSchema.validateAsync(req.query);
+
+      let userResult = await findUser({ _id: req.userId });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let addressRes = await findListAddresses({
+        status: { $ne: status.DELETE },
+      });
+      if (addressRes) {
+        let result = await paginateAddressSearch(validatedBody);
+        if (!result) {
+          throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+        } else {
+          return res.json(new response(result, responseMessage.ADDRESS_GET));
+        }
+      }
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /addresses/getAddresses:
+   *   get:
+   *     summary: User Get Addresses
+   *     tags:
+   *       - Addresses
+   *     description: User Get Addresses
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async getAddresses(req, res, next) {
+    try {
+      let userResult = await findUser({ _id: req.userId });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let addressRes = await findListAddresses({
+        userId: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (addressRes) {
+        return res.json(new response(addressRes, responseMessage.ADDRESS_GET));
+      }
+    } catch (error) {
+      return next(error);
+    }
+  }
+}
+
+export default new addressesController();

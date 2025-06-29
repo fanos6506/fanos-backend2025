@@ -1,0 +1,1827 @@
+import Joi from "joi";
+const { joiPasswordExtendCore } = require("joi-password");
+const joiPassword = Joi.extend(joiPasswordExtendCore);
+import _ from "lodash";
+import apiError from "../../../../helper/apiError.js";
+import response from "../../../../../assets/response.js";
+import bcrypt from "bcryptjs";
+import responseMessage from "../../../../../assets/responseMessage.js";
+import userModel from "../../../../models/user.js";
+import commonFunction from "../../../../helper/util.js";
+import status from "../../../../enums/status";
+import userType from "../../../../enums/userType";
+const { Country, State, City } = require("country-state-city");
+import maintainance from "../../../../models/websiteSetting";
+
+import { userServices } from "../../services/user";
+const {
+  emailMobileExist,
+  createUser,
+  findUser,
+  userFindList,
+  updateUser,
+  updateUserById,
+  findUserDatax,
+} = userServices;
+
+import { wishlistServices } from "../../services/wishlist";
+const {
+  createWishlist,
+  deleteWishlistData,
+  findWishlist,
+  paginateWishlist,
+  deleteWishlist,
+  wishlist,
+} = wishlistServices;
+
+import { productServices } from "../../services/product";
+const {
+  findProduct,
+  findAllProductNew,
+  featureProductsList,
+  productListWithPaginationNew,
+  recentProductsList,
+} = productServices;
+
+import { supervisorServices } from "../../services/supervisor";
+const { getCoupon, updateCoupon } = supervisorServices;
+
+import { notificationServices } from "../../services/notification";
+const { notificationCreate , notificationList} = notificationServices;
+
+const daysOfWeek = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+export class userController {
+  //******************************************************************* USER FLOW START HERE ***************************************************************** */
+
+  /**
+   * @swagger
+   * /user/signup:
+   *   post:
+   *     summary: Signup User
+   *     tags:
+   *       - User
+   *     description: Signup User
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: signup
+   *         description: signup
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/signup'
+   *     responses:
+   *       200:
+   *         description: User signup successfully
+   */
+  async signup(req, res, next) {
+    const validationSchema = Joi.object({
+      name: Joi.string().required(),
+      email: Joi.string()
+        .email({ minDomainSegments: 2, tlds: { allow: ["com", "net", "in"] } })
+        .message("Email is not valid"),
+      password: joiPassword
+        .string()
+        .minOfSpecialCharacters(1)
+        .minOfLowercase(1)
+        .minOfUppercase(1)
+        .minOfNumeric(1)
+        .noWhiteSpaces()
+        .min(8)
+        .messages({
+          "password.minOfUppercase":
+            "password should contain at least {#min} uppercase character",
+          "password.minOfSpecialCharacters":
+            "password should contain at least {#min} special character",
+          "password.minOfLowercase":
+            "password should contain at least {#min} lowercase character",
+          "password.minOfNumeric":
+            "password should contain at least {#min} numeric character",
+          "password.noWhiteSpaces": "password should not contain white spaces",
+          "password.min": "password length must be password",
+        }),
+      confirmPassword: Joi.ref("password"),
+    });
+    try {
+      if (req.body.email) {
+        req.body.email = req.body.email.toLowerCase();
+      }
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      const { email, password, confirmPassword, name } = validatedBody;
+      var userInfo = await findUser(
+        { email: email },
+        { userType: userType.USER, status: { $ne: status.DELETE } }
+      );
+
+      if (userInfo) {
+        if (userInfo.email == email) {
+          if (userInfo.status === status.BLOCK) {
+            throw apiError.conflict(responseMessage.BLOCK_USER_EMAIL_BY_ADMIN);
+          } else if (userInfo.otpVerification == true) {
+            throw apiError.conflict(responseMessage.EMAIL_EXIST);
+          }
+        }
+      }
+      if (validatedBody.password !== validatedBody.confirmPassword) {
+        throw apiError.badRequest(responseMessage.PWD_CFMPWD_NOT_MATCH);
+      }
+      validatedBody.password = bcrypt.hashSync(validatedBody.password);
+      validatedBody.otp = commonFunction.getOTP();
+      validatedBody.otpTime = new Date().getTime() + 180000;
+
+      if (userInfo) {
+        if (userInfo.otpVerification == false) {
+          await commonFunction.sendEmailOtpForSignup(email, validatedBody.otp);
+          let updateUserData = await updateUser(
+            { _id: userInfo._id },
+            validatedBody
+          );
+          let obj = {
+            _id: updateUserData._id,
+            email: updateUserData.email,
+            otp: updateUserData.otp,
+          };
+          return res.json(new response(obj, responseMessage.OTP_SEND));
+        }
+      }
+      await commonFunction.sendEmailOtpForSignup(email, validatedBody.otp);
+      let userdata = await createUser(validatedBody);
+      let obj = {
+        _id: userdata._id,
+        email: userdata.email,
+        otp: userdata.otp,
+      };
+      return res.json(new response(obj, responseMessage.OTP_SEND));
+    } catch (error) {
+      console.log(error, 123);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/verifySignUpOTP:
+   *   post:
+   *     tags:
+   *       - User
+   *     description: verifyOTP
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: verifyOTP
+   *         description: verifyOTP
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/verifyOTP'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *         schema:
+   *           $ref: '#/definitions/verifyOTPResponse'
+   */
+
+  async verifySignUpOTP(req, res, next) {
+    var validationSchema = Joi.object({
+      _id: Joi.string().required(),
+      otp: Joi.string().required(),
+    });
+    try {
+      var validatedBody = await validationSchema.validateAsync(req.body);
+      const { _id, otp } = validatedBody;
+      var userResult = await findUserDatax({
+        _id: _id,
+        status: { $ne: status.DELETE },
+      });
+      var attemp = userResult.attempts;
+
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      if (new Date().getTime() > userResult.failedAttemptReqTime) {
+        attemp = 0;
+        await userModel.updateOne(
+          { email: userResult.email },
+          { $set: { attempts: attemp } }
+        );
+      }
+
+      if (new Date().getTime() < userResult.attempExceedTime) {
+        throw apiError.alreadyExist(responseMessage.LIMIT_EXCEED);
+      }
+
+      if (new Date().getTime() > userResult.otpTime) {
+        throw apiError.badRequest(responseMessage.OTP_EXPIRED);
+      }
+      if (userResult.otp != otp) {
+        if (attemp < 4) {
+          attemp = attemp + 1;
+          await userModel.updateOne(
+            { email: userResult.email },
+            {
+              $set: {
+                attempts: attemp,
+                failedAttemptReqTime: new Date().getTime() + 20 * 60000,
+              },
+            }
+          );
+          throw apiError.badRequest(responseMessage.INCORRECT_OTP);
+        } else {
+          let time = new Date().getTime() + 3 * 60000;
+          await userModel.updateOne(
+            { email: userResult.email },
+            { $set: { attempts: 0, attempExceedTime: time } }
+          );
+          throw apiError.alreadyExist(responseMessage.LIMIT_EXCEED);
+        }
+      }
+      const updateResult = await updateUser(
+        { _id: userResult._id },
+        { otpVerification: true }
+      );
+
+      await notificationCreate({
+        userId: updateResult._id,
+        title: "Account Created",
+        body: `Hi ${updateResult.name} your account has been created successfully`,
+        currentTime: new Date().toISOString(),
+        currentDay: daysOfWeek[new Date().getDay()],
+      });
+      const obj = {
+        _id: updateResult._id,
+        email: updateResult.email,
+        otpVerification: true,
+      };
+      return res.json(new response(obj, responseMessage.Acc_Created));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/login:
+   *   post:
+   *     summary: User Login
+   *     tags:
+   *       - User
+   *     description: User Login
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: login
+   *         description: login
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/login'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *         schema:
+   *           $ref: '#/definitions/userSigninResponse'
+   */
+  async login(req, res, next) {
+    const validationSchema = Joi.object({
+      email: Joi.string()
+        .email({ minDomainSegments: 2, tlds: { allow: ["com", "net", "in"] } })
+        .message("Email is not valid"),
+      password: joiPassword
+        .string()
+        .minOfSpecialCharacters(1)
+        .minOfLowercase(1)
+        .minOfUppercase(1)
+        .minOfNumeric(1)
+        .noWhiteSpaces()
+        .min(8)
+        .messages({
+          "password.minOfUppercase":
+            "password should contain at least {#min} uppercase character",
+          "password.minOfSpecialCharacters":
+            "password should contain at least {#min} special character",
+          "password.minOfLowercase":
+            "password should contain at least {#min} lowercase character",
+          "password.minOfNumeric":
+            "password should contain at least {#min} numeric character",
+          "password.noWhiteSpaces": "password should not contain white spaces",
+          "password.min": "password length must be password",
+        }),
+      deviceToken: Joi.string().allow("").optional(),
+      deviceType: Joi.string().allow("").optional(),
+    });
+    try {
+      let token;
+      if (req.body.email) {
+        req.body.email = req.body.email.toLowerCase();
+      }
+      const { email, password, deviceToken, deviceType } =
+        await validationSchema.validateAsync(req.body);
+      var userResult = await findUser({
+        $and: [
+          { status: { $ne: status.DELETE } },
+          { email: email },
+          { userType: userType.USER },
+        ],
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.INVALID_CREDENTIALS);
+      }
+      if (userResult.status === status.BLOCK) {
+        throw apiError.badRequest(
+          responseMessage.BLOCK_USER_BY_ADMIN_PLEASE_CONTACT_ADMIN
+        );
+      }
+      if (userResult.otpVerification === false) {
+        throw apiError.badRequest(responseMessage.OTP_NOT_VERIFIED);
+      }
+      if (
+        !userResult.password ||
+        !bcrypt.compareSync(password, userResult.password)
+      ) {
+        throw apiError.invalid(responseMessage.INCORRECT_LOGIN);
+      }
+      if (deviceToken) {
+        await updateUser({ _id: userResult._id }, { deviceToken: deviceToken });
+      }
+      token = await commonFunction.getToken({
+        _id: userResult._id,
+        email: userResult.email,
+        userType: userResult.userType,
+      });
+      await notificationCreate({
+        userId: userResult._id,
+        title: "User Login",
+        body: `User has been logged in successfully`,
+        currentTime: new Date().toISOString(),
+        currentDay: daysOfWeek[new Date().getDay()],
+      });
+      let obj = {
+        _id: userResult._id,
+        email: userResult.email || userResult.mobileNumber,
+        name: userResult.name,
+        token: token,
+        otpVerification: userResult.otpVerification,
+        userType: userResult.userType,
+        status: userResult.status,
+      };
+      await Promise.all([
+        updateUser(
+          { _id: userResult._id, userType: userType.USER },
+          { $set: { isOnline: true } }
+        ),
+      ]);
+      return res.json(new response(obj, responseMessage.LOGIN));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/forgotPassword:
+   *   put:
+   *     summary: Forgot Password
+   *     tags:
+   *       - User
+   *     description: Forgot Password
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: forgotPassword
+   *         description: forgotPassword
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/resendOTP'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *         schema:
+   *           $ref: '#/definitions/commonResponse'
+   */
+  async forgotPassword(req, res, next) {
+    var validationSchema = Joi.object({
+      email: Joi.string()
+        .email({ minDomainSegments: 2, tlds: { allow: ["com", "net", "in"] } })
+        .message("Email is not valid"),
+    });
+    try {
+      if (req.body.email) {
+        req.body.email = req.body.email.toLowerCase();
+      }
+      var validatedBody = await validationSchema.validateAsync(req.body);
+      const { email } = validatedBody;
+      var userResult = await findUser({
+        $and: [{ status: { $ne: status.DELETE } }, { email: email }],
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      var otp = commonFunction.getOTP();
+      var otpTime = new Date().getTime() + 300000;
+      if (userResult.email == email) {
+        commonFunction.sendForgotPasswordOtp(email, otp);
+      }
+      var updateResult = await updateUser(
+        { _id: userResult._id },
+        { otp: otp, otpTime: otpTime, otpVerification: false }
+      );
+      let obj = {
+        _id: updateResult._id,
+        email: updateResult.email,
+        otp: updateResult.otp,
+      };
+      return res.json(new response(obj, responseMessage.OTP_SEND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/verifyOTP:
+   *   post:
+   *     tags:
+   *       - User
+   *     description: verifyOTP
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: verifyOTP
+   *         description: verifyOTP
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/verifyOTP'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *         schema:
+   *           $ref: '#/definitions/verifyOTPResponse'
+   */
+  async verifyOTP(req, res, next) {
+    var validationSchema = Joi.object({
+      _id: Joi.string().required(),
+      otp: Joi.string().required(),
+    });
+    try {
+      var validatedBody = await validationSchema.validateAsync(req.body);
+      const { _id, otp } = validatedBody;
+      var userResult = await findUserDatax({
+        _id: _id,
+        status: { $ne: status.DELETE },
+      });
+      var attemp = userResult.attempts;
+
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      if (new Date().getTime() > userResult.failedAttemptReqTime) {
+        attemp = 0;
+        await userModel.updateOne(
+          { email: userResult.email },
+          { $set: { attempts: attemp } }
+        );
+      }
+
+      if (new Date().getTime() < userResult.attempExceedTime) {
+        throw apiError.alreadyExist(responseMessage.LIMIT_EXCEED);
+      }
+
+      if (new Date().getTime() > userResult.otpTime) {
+        throw apiError.badRequest(responseMessage.OTP_EXPIRED);
+      }
+      if (userResult.otp != otp) {
+        if (attemp < 4) {
+          attemp = attemp + 1;
+          await userModel.updateOne(
+            { email: userResult.email },
+            {
+              $set: {
+                attempts: attemp,
+                failedAttemptReqTime: new Date().getTime() + 20 * 60000,
+              },
+            }
+          );
+          throw apiError.badRequest(responseMessage.INCORRECT_OTP);
+        } else {
+          let time = new Date().getTime() + 3 * 60000;
+          await userModel.updateOne(
+            { email: userResult.email },
+            { $set: { attempts: 0, attempExceedTime: time } }
+          );
+          throw apiError.alreadyExist(responseMessage.LIMIT_EXCEED);
+        }
+      }
+      const updateResult = await updateUser(
+        { _id: userResult._id },
+        { otpVerification: true }
+      );
+
+      const obj = {
+        _id: updateResult._id,
+        email: updateResult.email,
+        otpVerification: true,
+      };
+      return res.json(new response(obj, responseMessage.OTP_VERIFY));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/resendOTP:
+   *   put:
+   *     tags:
+   *       - User
+   *     description: resendOTP
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: resendOTP
+   *         description: resendOTP
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/resendOTP'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *         schema:
+   *           $ref: '#/definitions/commonResponse'
+   */
+  async resendOTP(req, res, next) {
+    var validationSchema = Joi.object({
+      email: Joi.string().required(),
+    });
+    try {
+      if (req.body.email) {
+        req.body.email = req.body.email.toLowerCase();
+      }
+      var validatedBody = await validationSchema.validateAsync(req.body);
+      const { email } = validatedBody;
+      var userResult = await findUser({
+        $and: [{ status: { $ne: status.DELETE } }, { email: email }],
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      var otp = commonFunction.getOTP();
+      var otpTime = new Date().getTime() + 300000;
+      commonFunction.sendEmailReSendOtp(email, otp);
+      var updateResult = await updateUser(
+        { _id: userResult._id },
+        { otp: otp, otpTime: otpTime }
+      );
+      let obj = {
+        _id: updateResult._id,
+        email: updateResult.email,
+        otp: updateResult.otp,
+      };
+      return res.json(new response(obj, responseMessage.OTP_SEND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/viewMyProfile:
+   *   get:
+   *     summary: View MyProfile
+   *     tags:
+   *       - User
+   *     description: View MyProfile
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async viewMyProfile(req, res, next) {
+    try {
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      userResult = JSON.parse(JSON.stringify(userResult));
+      const notification = await notificationList({userId:req.userId , isRead:false});
+      delete userResult.password;
+      delete userResult.otpVerification;
+      let obj = {
+        city: userResult.city,
+        state: userResult.state,
+        country: userResult.country,
+        userName: userResult.userName,
+        profilePic: userResult.profilePic,
+        userType: userResult.userType,
+        followersCount: userResult.followersCount,
+        likesUserCount: userResult.likesUserCount,
+        followingCount: userResult.followingCount,
+        _id: userResult._id,
+        name: userResult.name,
+        email: userResult.email,
+        countryCode: userResult.countryCode,
+        mobileNumber: userResult.mobileNumber,
+        location: userResult.location,
+        unreadNotificationCount: notification.length
+      };
+      return res.json(new response(obj, responseMessage.DATA_FOUND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/updateProfile:
+   *   put:
+   *     summary: Update Profile
+   *     tags:
+   *       - User
+   *     description: updateProfile
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: name
+   *         description: userName
+   *         in: formData
+   *         required: false
+   *       - name: email
+   *         description: email
+   *         in: formData
+   *         required: false
+   *       - name: countryCode
+   *         description: countryCode
+   *         in: formData
+   *         required: false
+   *       - name: mobileNumber
+   *         description: mobileNumber
+   *         in: formData
+   *         required: false
+   *       - name: location
+   *         description: location
+   *         in: formData
+   *         required: false
+   *       - name: profilePic
+   *         description: profilePic
+   *         in: formData
+   *         type: file
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+
+  async updateProfile(req, res, next) {
+    var validationSchema = Joi.object({
+      name: Joi.string().optional(),
+      email: Joi.string()
+        .email({ minDomainSegments: 2, tlds: { allow: ["com", "net", "in"] } })
+        .message("Email is not valid"),
+      countryCode: Joi.string().optional(),
+      mobileNumber: Joi.string().optional(),
+      location: Joi.string().optional(),
+      profilePic: Joi.string().optional(),
+    });
+    try {
+      if (req.body.email) {
+        req.body.email = req.body.email.toLowerCase();
+      }
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      let userExist = await emailMobileExist(
+        validatedBody.mobileNumber,
+        validatedBody.email,
+        userResult._id
+      );
+      if (userExist) {
+        if (userExist.email == validatedBody.email) {
+          throw apiError.notFound(responseMessage.EMAIL_EXIST);
+        } else {
+          throw apiError.notFound(responseMessage.MOBILE_EXIST);
+        }
+      }
+      if (req.files && req.files.length != 0) {
+        let imgUrl1 = await commonFunction.getImageUrl(req.files[0].path);
+        validatedBody.profilePic = imgUrl1.url;
+      }
+
+      const result = await updateUser({ _id: userResult._id }, validatedBody);
+      const title = "Account Updated";
+      const body = `Hi ${userResult.name}, your profile has been updated successfully`;
+      await notificationCreate({
+        userId: userResult._id,
+        title: title,
+        imageUrl: validatedBody.profilePic,
+        body: body,
+        currentTime: new Date().toISOString(),
+        currentDay: daysOfWeek[new Date().getDay()],
+      });
+
+      if (userResult.deviceToken && userResult.deviceType != "") {
+        await commonFunction.pushNotification(
+          userResult.deviceToken,
+          title,
+          body
+        );
+      }
+      return res.json(new response(result, responseMessage.USER_UPDATED));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/changePassword:
+   *   post:
+   *     tags:
+   *       - User
+   *     description: changePassword
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: changePassword
+   *         description: changePassword
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/changePassword'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *         schema:
+   *           $ref: '#/definitions/commonResponse'
+   */
+
+  async changePassword(req, res, next) {
+    const validationSchema = Joi.object({
+      oldPassword: Joi.string().required(),
+      newPassword: Joi.string().required(),
+      confirmPassword: Joi.string().required(),
+    });
+    try {
+      let validatedBody = await validationSchema.validateAsync(req.body);
+      let userResult = await findUser({
+        _id: req.userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      if (validatedBody.oldPassword == validatedBody.newPassword) {
+        throw apiError.badRequest(responseMessage.PWD_DIFFERENT);
+      }
+      if (validatedBody.newPassword != validatedBody.confirmPassword) {
+        throw apiError.badRequest(responseMessage.PWD_CFMPWD_NOT_MATCH);
+      }
+
+      if (!bcrypt.compareSync(validatedBody.oldPassword, userResult.password)) {
+        throw apiError.badRequest(responseMessage.PWD_NOT_MATCH);
+      }
+      let updated = await updateUserById(userResult._id, {
+        password: bcrypt.hashSync(validatedBody.newPassword),
+      });
+
+      return res.json(new response({}, responseMessage.PWD_CHANGED));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/resetPassword:
+   *   post:
+   *     tags:
+   *       - User
+   *     description: resetPassword
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: _id
+   *         description: _id
+   *         in: formData
+   *         required: true
+   *       - name: password
+   *         description: password
+   *         in: formData
+   *         required: true
+   *       - name: confirmPassword
+   *         description: confirmPassword
+   *         in: formData
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Your password has been successfully changed.
+   *         schema:
+   *           $ref: '#/definitions/commonResponse'
+   *       404:
+   *         description: This user does not exist.
+   *       422:
+   *         description: Password not matched.
+   *       500:
+   *         description: Internal Server Error
+   *       501:
+   *         description: Something went wrong!
+   */
+  async resetPassword(req, res, next) {
+    const validationSchema = Joi.object({
+      _id: Joi.string().required(),
+      password: Joi.string().required(),
+      confirmPassword: Joi.string().required(),
+    });
+    try {
+      const { _id, password, confirmPassword } =
+        await validationSchema.validateAsync(req.body);
+      var userResult = await findUser({
+        _id: _id,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      } else {
+        if (password == confirmPassword) {
+          let update = await updateUser(
+            { _id: userResult._id },
+            { password: bcrypt.hashSync(password) }
+          );
+          return res.json(new response({}, responseMessage.PWD_CHANGED));
+        } else {
+          throw apiError.notFound(responseMessage.PWD_NOT_MATCH);
+        }
+      }
+    } catch (error) {
+      return next(error);
+    }
+  }
+  //******************************************************************* USER FLOW END HERE ************************************************************************ */
+
+  //****************************************************************** FOLLOW/UNFOLLW MANAGEMENT START HERE ******************************************************** */
+
+  /**
+   * @swagger
+   * /user/followUnfollowUser/{userId}:
+   *   put:
+   *     summary: followUnfollowUser
+   *     tags:
+   *       - USER_FOLLOW/UNFOLLOW_MANAGEMENT
+   *     description: followUnfollowUser
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: userId
+   *         description: userId
+   *         in: path
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async followUnfollowUser(req, res, next) {
+    var validationSchema = Joi.object({
+      userId: Joi.string().required(),
+    });
+    try {
+      var updated;
+      const { userId } = await validationSchema.validateAsync(req.params);
+
+      let userResult = await findUser({ _id: req.userId });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let userCheck = await findUser({
+        _id: userId,
+        status: { $ne: status.DELETE },
+      });
+      if (!userCheck) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      if (userCheck.followers.includes(userResult._id)) {
+        await updateUser(
+          { _id: userCheck._id },
+          { $pull: { followers: userResult._id }, $inc: { followersCount: -1 } }
+        );
+        updated = await updateUser(
+          { _id: userResult._id },
+          { $pull: { following: userCheck._id }, $inc: { followingCount: -1 } }
+        );
+        return res.json(new response(updated, responseMessage.UN_FOLLOW));
+      }
+      await updateUser(
+        { _id: userCheck._id },
+        {
+          $addToSet: { followers: userResult._id },
+          $inc: { followersCount: 1 },
+        }
+      );
+      updated = await updateUser(
+        { _id: userResult._id },
+        { $addToSet: { following: userCheck._id }, $inc: { followingCount: 1 } }
+      );
+      return res.json(new response(updated, responseMessage.FOLLOW_SUCCE));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/followerUserList:
+   *   post:
+   *     summary: followerUserList
+   *     tags:
+   *       - USER_FOLLOW/UNFOLLOW_MANAGEMENT
+   *     description: followerUserList
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: page
+   *         description: page
+   *         in: formData
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: formData
+   *         required: false
+   *       - name: search
+   *         description: search
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async followerUserList(req, res, next) {
+    try {
+      let userResult = await findUser({ _id: req.userId });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      let followers = [];
+      let followerQuery = {
+        _id: { $in: userResult.followers },
+        status: "ACTIVE",
+      };
+      if (req.body.search) {
+        followerQuery.$or = [
+          { name: { $regex: req.body.search, $options: "i" } },
+          { email: { $regex: req.body.search, $options: "i" } },
+          { userName: { $regex: req.body.search, $options: "i" } },
+        ];
+      }
+      followers = await userFindList(followerQuery);
+      if (followers.length == 0) {
+        return res.json(
+          new response(
+            { docs: followers, count: followers.length },
+            responseMessage.FOLLOWERS_FOUND
+          )
+        );
+      }
+      if (req.body.page && req.body.limit) {
+        let paginatedData = await commonFunction.paginationFunction(
+          followers,
+          Number(req.body.page) || 1,
+          Number(req.body.limit) || 10
+        );
+        return res.json(
+          new response(paginatedData, responseMessage.FOLLOWERS_FOUND)
+        );
+      }
+      return res.json(
+        new response(
+          { docs: followers, count: followers.length },
+          responseMessage.FOLLOWERS_FOUND
+        )
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/followingUserList:
+   *   post:
+   *     summary: followingUserList
+   *     tags:
+   *       - USER_FOLLOW/UNFOLLOW_MANAGEMENT
+   *     description: followingUserList
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: page
+   *         description: page
+   *         in: formData
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: formData
+   *         required: false
+   *       - name: search
+   *         description: search
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async followingUserList(req, res, next) {
+    try {
+      let userResult = await findUser({ _id: req.userId });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      let following = [];
+      let followingQuery = {
+        _id: { $in: userResult.following },
+        status: "ACTIVE",
+      };
+      if (req.body.search) {
+        followingQuery.$or = [
+          { name: { $regex: req.body.search, $options: "i" } },
+          { email: { $regex: req.body.search, $options: "i" } },
+          { userName: { $regex: req.body.search, $options: "i" } },
+        ];
+      }
+      following = await userFindList(followingQuery);
+      if (following.length == 0) {
+        return res.json(
+          new response(
+            { docs: following, count: following.length },
+            responseMessage.DATA_FOUND
+          )
+        );
+      }
+      if (req.body.page && req.body.limit) {
+        let paginatedData = await commonFunction.paginationFunction(
+          following,
+          Number(req.body.page) || 1,
+          Number(req.body.limit) || 10
+        );
+        return res.json(
+          new response(paginatedData, responseMessage.DATA_FOUND)
+        );
+      }
+      return res.json(
+        new response(
+          { docs: following, count: following.length },
+          responseMessage.DATA_FOUND
+        )
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/otherfollowingUserList:
+   *   get:
+   *     summary: otherfollowingUserList
+   *     tags:
+   *       - USER_FOLLOW/UNFOLLOW_MANAGEMENT
+   *     description: otherfollowingUserList
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: _id
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async otherfollowingUserList(req, res, next) {
+    try {
+      let user = await findUser({ _id: req.userId });
+      if (!user) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      let following = [];
+      let userResult = await findUser({ _id: req.query._id });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      for (let element of userResult.following) {
+        let userResult1 = await findUser({ _id: element });
+        following.push(userResult1);
+      }
+      let obj = {
+        following: following,
+        count: userResult.following.length,
+      };
+      return res.json(new response(obj, responseMessage.DATA_FOUND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/otherfollowerUserList:
+   *   get:
+   *     summary: otherfollowerUserList
+   *     tags:
+   *       - USER_FOLLOW/UNFOLLOW_MANAGEMENT
+   *     description: otherfollowerUserList
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: _id
+   *         in: query
+   *         required: true
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         required: false
+   *       - name: search
+   *         description: search
+   *         in: query
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async otherfollowerUserList(req, res, next) {
+    try {
+      let user = await findUser({ _id: req.userId });
+      if (!user) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      let userResult = await findUser({ _id: req.query._id });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      let followers = [];
+      let followerQuery = {
+        _id: { $in: userResult.followers },
+        status: "ACTIVE",
+      };
+      if (req.query.search) {
+        followerQuery.$or = [
+          { name: { $regex: req.query.search, $options: "i" } },
+          { email: { $regex: req.query.search, $options: "i" } },
+          { userName: { $regex: req.query.search, $options: "i" } },
+        ];
+      }
+      followers = await userFindList(followerQuery);
+      if (followers.length == 0) {
+        return res.json(
+          new response(
+            { docs: followers, count: followers.length },
+            responseMessage.FOLLOWERS_FOUND
+          )
+        );
+      }
+      if (req.query.page && req.query.limit) {
+        let paginatedData = await commonFunction.paginationFunction(
+          followers,
+          Number(req.query.page) || 1,
+          Number(req.query.limit) || 10
+        );
+        return res.json(
+          new response(paginatedData, responseMessage.FOLLOWERS_FOUND)
+        );
+      }
+      return res.json(
+        new response(
+          { docs: followers, count: followers.length },
+          responseMessage.FOLLOWERS_FOUND
+        )
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  //****************************************************************** FOLLOW/UNFOLLW MANAGEMENT END HERE ******************************************************** */
+
+  //****************************************************************** WISHLIST MANAGEMENT START HERE ********************************************************** */
+
+  /**
+   * @swagger
+   * /user/addToWishlist:
+   *   post:
+   *     summary: addToWishlist
+   *     tags:
+   *       - WISHLIST_MANAGEMENT
+   *     description: addToWishlist
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: productId
+   *         description: productId
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async addToWishlist(req, res, next) {
+    var validationSchema = Joi.object({
+      productId: Joi.string().optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      const { productId } = validatedBody;
+      let user = await findUser({ _id: req.userId });
+      if (!user) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let check = await findWishlist({
+        productId: productId,
+        userId: user._id,
+        status: status.ACTIVE,
+      });
+      if (check) {
+        throw apiError.conflict(responseMessage.ALREADY_EXITS);
+      }
+      let product = await findProduct({ _id: productId });
+      if (!product) {
+        throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
+      }
+      let obj = {
+        productId: productId,
+        userId: user._id,
+        ownerId: product.userId,
+      };
+      const title = "Product Added to Wishlist";
+      const body = `You've successfully added the product "${product.productName}" to your wishlist.`;
+      await notificationCreate({
+        userId: user._id,
+        title: title,
+        imageUrl: product.productImage[0],
+        body: body,
+        currentTime: new Date().toISOString(),
+        currentDay: daysOfWeek[new Date().getDay()],
+      });
+      if(user.deviceToken && user.deviceType != ""){
+        await commonFunction.pushNotification(user.deviceToken, title, body);
+      }
+      let data = await createWishlist(obj);
+      return res.json(new response(data, responseMessage.WISHLIST_ADD));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/allWishlist:
+   *   post:
+   *     summary: allWishlist
+   *     tags:
+   *       - WISHLIST_MANAGEMENT
+   *     description: allWishlist
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: page
+   *         description: page
+   *         in: formData
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: formData
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async allWishlist(req, res, next) {
+    try {
+      let user = await findUser({ _id: req.userId });
+      if (!user) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+      let data = await paginateWishlist(req.body, user._id);
+      if (data.docs.length === 0) {
+        return res.json(new response(data, responseMessage.NOT_FOUND));
+      }
+      return res.json(new response(data, responseMessage.DATA_FOUND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/wishlistDataSearchProductId:
+   *   post:
+   *     summary: wishlistDataSearchProductId
+   *     tags:
+   *       - WISHLIST_MANAGEMENT
+   *     description: wishlistDataSearchProductId
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: productId
+   *         description: productId
+   *         in: formData
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async wishlistDataSearchProductId(req, res, next) {
+    try {
+      let user = await findUser({ _id: req.userId });
+      if (!user) {
+        throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      }
+
+      let data = await findWishlist({
+        productId: req.body.productId,
+        userId: user._id,
+        status: status.ACTIVE,
+      });
+      if (!data) {
+        return res.json(new response(data, responseMessage.NOT_FOUND));
+      }
+
+      return res.json(new response(data, responseMessage.DATA_FOUND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/removeWishlist:
+   *   delete:
+   *     summary: removeWishlist
+   *     tags:
+   *       - WISHLIST_MANAGEMENT
+   *     description: removeWishlist
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: wishlistId
+   *         description: wishlistId
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async removeWishlist(req, res, next) {
+    var validationSchema = Joi.object({
+      wishlistId: Joi.string().required(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+
+      const userResult = await findUser({
+        _id: req.userId,
+        userType: userType.USER,
+        status: { $ne: status.DELETE },
+      });
+      if (!userResult) throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+
+      const result = await findWishlist({
+        _id: validatedBody.wishlistId,
+        status: { $ne: status.DELETE },
+      });
+      if (!result) throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+
+      const updateRes = await deleteWishlistData({ _id: result._id });
+      return res.json(new response(updateRes, responseMessage.REMOVE));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/deleteWishlistData:
+   *   delete:
+   *     summary: deleteWishlistData
+   *     tags:
+   *       - WISHLIST_MANAGEMENT
+   *     description: deleteWishlistData
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async deleteWishlistData(req, res, next) {
+    try {
+      const userResult = await findUser({
+        _id: req.userId,
+        userType: userType.USER,
+      });
+      if (!userResult) throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+
+      const result = await deleteWishlist();
+      if (!result) throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+
+      return res.json(new response({}, responseMessage.DELETED_SUCCESSFULLY));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  //****************************************************************** WISHLIST MANAGEMENT END HERE ********************************************************** */
+
+  //****************************************************************** HOME MANAGEMENT START HERE ********************************************************** */
+
+  /**
+   * @swagger
+   * /user/getRecentProducts:
+   *   get:
+   *     tags:
+   *       - Home
+   *     description: Get all recent products.
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: userId
+   *         description: userId
+   *         in: query
+   *         type: String
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         type: integer
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async getRecentProducts(req, res, next) {
+    const validationSchema = Joi.object({
+      userId: Joi.string().allow("").optional(),
+      page: Joi.number().allow("").optional(),
+      limit: Joi.number().allow("").optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+      var result = await recentProductsList(validatedBody);
+      if (!result) {
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+      }
+      result = JSON.parse(JSON.stringify(result));
+      return res.json(new response(result, responseMessage.GET_PRODUCTS));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/getPopularProducts:
+   *   get:
+   *     tags:
+   *       - Home
+   *     description: Get all Popular products.
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: userId
+   *         description: userId
+   *         in: query
+   *         type: String
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         type: integer
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async getPopularProducts(req, res, next) {
+    try {
+      const allProductData = await wishlist();
+      if (!allProductData) {
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+      }
+      const result = Object.entries(
+        allProductData.reduce((acc, obj) => {
+          if (obj.productId in acc) {
+            acc[obj.productId].count++;
+          } else {
+            acc[obj.productId] = { count: 1 };
+          }
+          return acc;
+        }, {})
+      ).map(([productId, { count }]) => ({ productId, count }));
+
+      const productId = result.map((element) => element.productId);
+
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const startIndex = (page - 1) * limit;
+      const endIndex = page * limit;
+      const totalItems = productId.length;
+
+      let allPopularProducts = [];
+      if (req.query.userId) {
+        allPopularProducts = await findAllProductNew(
+          {
+            _id: { $in: productId },
+            userId: { $ne: req.query.userId },
+            status: "ACTIVE",
+            approveStatus: "APPROVED",
+            paymentStatus: "APPROVED",
+          },
+          startIndex,
+          limit
+        );
+      } else {
+        allPopularProducts = await findAllProductNew(
+          {
+            _id: { $in: productId },
+            status: "ACTIVE",
+            approveStatus: "APPROVED",
+            paymentStatus: "APPROVED",
+          },
+          startIndex,
+          limit
+        );
+      }
+
+      const responseData = allPopularProducts.map((item) => {
+        const matchedItem = result.find(
+          (resultItem) => resultItem.productId === item._id.toString()
+        );
+        return { ...matchedItem, ...item._doc };
+      });
+
+      const totalPages = Math.ceil(totalItems / limit);
+
+      return res.json(
+        new response(
+          {
+            data: responseData,
+            page,
+            limit,
+            totalItems,
+            totalPages,
+          },
+          responseMessage.GET_PRODUCTS
+        )
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/getAllProducts:
+   *   get:
+   *     tags:
+   *       - Home
+   *     description: Get all recent products.
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: userId
+   *         description: userId
+   *         in: query
+   *         type: String
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         type: integer
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async getAllProducts(req, res, next) {
+    const validationSchema = Joi.object({
+      userId: Joi.string().allow("").optional(),
+      page: Joi.number().allow("").optional(),
+      limit: Joi.number().allow("").optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+      var result = await productListWithPaginationNew(validatedBody);
+      if (!result) {
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+      }
+      result = JSON.parse(JSON.stringify(result));
+      return res.json(new response(result, responseMessage.GET_PRODUCTS));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  //****************************************************************** HOME MANAGEMENT END HERE ********************************************************** */
+
+  //****************************************************************** Maintainance MANAGEMENT END HERE ********************************************************** */
+
+  /**
+   * @swagger
+   * /user/getMaintainanceStatus:
+   *   get:
+   *     tags:
+   *       - Site Maintainance
+   *     description: Get side maintainance status.
+   *     produces:
+   *       - application/json
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async getMaintainanceStatus(req, res, next) {
+    try {
+      var result = await maintainance.find();
+      if (!result) {
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+      }
+      result = JSON.parse(JSON.stringify(result));
+      return res.json(new response(result, responseMessage.GET_PRODUCTS));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  //****************************************************************** Maintainance MANAGEMENT END HERE ********************************************************** */
+
+  // ****************************************************************** Country and State  START HERE ********************************************************** */
+
+  /**
+   * @swagger
+   * /user/getCountry:
+   *   get:
+   *     tags:
+   *       - Country
+   *     description: Get All Country .
+   *     produces:
+   *       - application/json
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async getCountry(req, res, next) {
+    try {
+      const countries = Country.getAllCountries().map((country) => {
+        return { countryName: country.name, countryId: country.isoCode };
+      });
+      // const countries1 = Country.getAllCountries()
+
+      return res.json({
+        data: countries,
+        message: "Successfully retrieved countries",
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /user/states/{country}:
+   *   get:
+   *     tags:
+   *       - Country
+   *     description: Get All Country .
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: country
+   *         description: country
+   *         in: path
+   *         type: string
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async getStates(req, res, next) {
+    try {
+      const { country } = req.params;
+      const countryObj = Country.getCountryByCode(country);
+      if (!countryObj) {
+        return res.status(404).json({
+          error: "Country not found",
+        });
+      }
+      const states = State.getStatesOfCountry(countryObj.isoCode).map(
+        (state) => ({
+          country: countryObj.name,
+          state: state.name,
+        })
+      );
+
+      return res.json({
+        data: states,
+        message: `States of ${countryObj.name}`,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  // ****************************************************************** Country and State  START HERE ********************************************************** */
+}
+export default new userController();

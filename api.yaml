@@ -1,0 +1,1153 @@
+definitions:
+  securitySchemes:
+    tokenauth:
+      type: basic
+      description: bearer auth
+      name: Authorization
+      in: header
+    demouser:
+      type: basic
+
+  userSignupResponse:
+    properties:
+      result:
+        type: object
+        properties:
+          city:
+            type: string
+          state:
+            type: string
+          country:
+            type: string
+          userName:
+            type: string
+          otpVerification:
+            type: boolean
+          profilePic:
+            type: string
+          userType:
+            type: string
+          status:
+            type: string
+          _id:
+            type: string
+          name:
+            type: string
+          email:
+            type: string
+          password:
+            type: string
+          countryCode:
+            type: string
+          mobileNumber:
+            type: string
+          otpTime:
+            type: string
+          createdAt:
+            type: string
+          updatedAt:
+            type: string
+      responseMessage:
+        type: string
+      responseCode:
+        type: number
+    # exmaple: {
+    #   result: {
+    #     city: ""
+    #     state: ""
+    #     country: ""
+    #     userName: ""
+    #     otpVerification: false
+    #     profilePic: ""
+    #     userType: "USER"
+    #     status: "ACTIVE"
+    #     _id: "63da340da3a09273a1dc50be"
+    #     name: "Rohit Pandit"
+    #     email: "rohit.pandit@indicchain.com"
+    #     password: "$2a$10$la9E3JOgW7ppx0gTtNxgu.Ak9koKD/.zAMwbTLGwC.aWgKAdNgpci"
+    #     countryCode: "+91"
+    #     mobileNumber: "7038415053"
+    #     otpTime: "1675244854774"
+    #     createdAt: "2023-02-01T09:42:37.430Z"
+    #     updatedAt: "2023-02-01T09:42:37.430Z"
+    #   }
+    #   responseMessage: "User signup successfully."
+    #   responseCode: 200
+    # }
+
+  signup:
+    required:
+      - name
+      - email
+      - password
+      - confirmPassword
+    properties:
+      name:
+        type: string
+      email:
+        type: string
+      password:
+        type: string
+      confirmPassword:
+        type: string
+      mobileNumber:
+        type: string
+        description: Optional mobile number
+      countryCode:
+        type: string
+        description: Optional country code
+    example:
+      name: "Rohit"
+      email: "rohit.pandit@indicchain.com"
+      password: "Rohit@123"
+      confirmPassword: "Rohit@123"
+      mobileNumber: "1234567890"
+      countryCode: "+91"
+
+  userSigninResponse:
+    properties:
+      result:
+        type: object
+        properties:
+          _id:
+            type: string
+          email:
+            type: string
+          name:
+            type: string
+          token:
+            type: string
+          otpVerification:
+            type: boolean
+          userType:
+            type: string
+          status:
+            type: string
+      responseMessage:
+        type: string
+      responseCode:
+        type: number
+    # exmaple: {
+    #   result: {
+    #   "_id": "63da340da3a09273a1dc50be",
+    #   "email": "rohit.pandit@indicchain.com",
+    #   "name": "Rohit Pandit",
+    #   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2M2RhMzQwZGEzYTA5MjczYTFkYzUwYmUiLCJlbWFpbCI6InJvaGl0LnBhbmRpdEBpbmRpY2NoYWluLmNvbSIsInVzZXJUeXBlIjoiVVNFUiIsImlhdCI6MTY3NTI0NzI0NSwiZXhwIjoxNzA2NzgzMjQ1fQ.mtF4ACeQR7Wi8t60tF1qIXIONU-YLxnOj2BYBhRsLPY",
+    #   "otpVerification": false,
+    #   "userType": "USER",
+    #   "status": "ACTIVE"
+    # },
+    #   responseMessage: "User signup successfully."
+    #   responseCode: 200
+    # }
+
+  login:
+    required:
+      - email
+      - password
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      deviceToken:
+        type: string
+      deviceType:
+        type: string
+    example:
+      email: "rohit.pandit@indicchain.com"
+      password: "Rohit@123"
+      deviceToken: ""
+      deviceType : ""
+
+  deleteMessage:
+    required:
+      - chatId
+      - messages
+    properties:
+      chatId:
+        type: string
+      messages:
+        type: string
+
+  addFAQ:
+    required:
+      - question
+      - answer
+    properties:
+      question:
+        type: string
+      answer:
+        type: string
+
+  editFAQ:
+    required:
+      - _id
+      - question
+      - answer
+    properties:
+      _id:
+        type: string
+      question:
+        type: string
+      answer:
+        type: string
+
+  adminLogin:
+    required:
+      - email
+      - password
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    example:
+      email: "panditrohit532@gmail.com"
+      password: "Mobiloitte@1"
+
+  commonResponse:
+    properties:
+      responseMessage:
+        type: string
+      responseCode:
+        type: number
+    # exmaple: {
+    #   responseMessage: "OTP send successfully."
+    #   responseCode: 200
+    # }
+
+  resendOTP:
+    required:
+      - email
+    properties:
+      email:
+        type: string
+    example:
+      email: "rohit.pandit@indicchain.com"
+
+  verifyOTP:
+    required:
+      - _id
+      - otp
+    properties:
+      _id:
+        type: string
+      otp:
+        type: string
+
+  updateProfile:
+    properties:
+      city:
+        type: string
+      state:
+        type: string
+      country:
+        type: string
+      userName:
+        type: string
+      name:
+        type: string
+      email:
+        type: string
+      mobileNumber:
+        type: string
+      profilePic:
+        type: string
+    example:
+      name: "Rohit Pandit"
+      email: "rohit.pandit@indicchain.com"
+      mobileNumber: "7038415053"
+      city: "Pune"
+      state: "Maharashtra"
+      country: "India"
+      userName: "rohit"
+      profilePic: "string"
+
+  changePassword:
+    required:
+      - oldPassword
+      - newPassword
+      - confirmPassword
+    properties:
+      oldPassword:
+        type: string
+      newPassword:
+        type: string
+      confirmPassword:
+        type: string
+    example:
+      oldPassword: "Mobiloitte@1"
+      newPassword: "Rahul@123"
+      confirmPassword: "Rahul@123"
+
+  verifyOTPResponse:
+    properties:
+      result:
+        type: object
+        properties:
+          _id:
+            type: string
+          email:
+            type: string
+          name:
+            type: string
+          token:
+            type: string
+          otpVerification:
+            type: boolean
+          userType:
+            type: string
+          status:
+            type: string
+      responseMessage:
+        type: string
+      responseCode:
+        type: number
+    # exmaple: {
+    #   result: {
+    #   "_id": "63da340da3a09273a1dc50be",
+    #   "email": "rohit.pandit@indicchain.com",
+    #   "name": "Rohit Pandit",
+    #   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2M2RhMzQwZGEzYTA5MjczYTFkYzUwYmUiLCJlbWFpbCI6InJvaGl0LnBhbmRpdEBpbmRpY2NoYWluLmNvbSIsInVzZXJUeXBlIjoiVVNFUiIsImlhdCI6MTY3NTI0NzI0NSwiZXhwIjoxNzA2NzgzMjQ1fQ.mtF4ACeQR7Wi8t60tF1qIXIONU-YLxnOj2BYBhRsLPY",
+    #   "otpVerification": false,
+    #   "userType": "USER",
+    #   "status": "ACTIVE"
+    # },
+    #   responseMessage: "Verify OTP successfully."
+    #   responseCode: 200
+    # }
+
+  createRole:
+    required:
+      - role
+      - description
+      - userManagement
+    properties:
+      role:
+        type: string
+      description:
+        type: string
+      userManagement:
+        type: boolean
+    example:
+      role: "Editor"
+      description: "Editor"
+      userManagement: true
+
+  blockUnblockUser:
+    required:
+      - _id
+    properties:
+      _id:
+        type: string
+
+  deleteUser:
+    required:
+      - _id
+    properties:
+      _id:
+        type: string
+
+  createAddress:
+    required:
+      - name
+      - countryCode
+      - mobileNumber
+      - addressType
+      - addressLine1
+      - addressLine2
+      - country
+      - state
+      - city
+      - pincode
+    properties:
+      name:
+        type: string
+      countryCode:
+        type: string
+      mobileNumber:
+        type: string
+      addressType:
+        type: string
+      addressLine1:
+        type: string
+      addressLine2:
+        type: string
+      city:
+        type: string
+      state:
+        type: string
+      pincode:
+        type: number
+      country:
+        type: string
+    example:
+      name: "Rohit Pandit"
+      countryCode: "+91"
+      mobileNumber: "7038415053"
+      addressType: "HOME"
+      addressLine1: "Sambhaji Nagar, Dehu Rasta"
+      addressLine2: "Bharatmata Chowck, Moshi"
+      country: "India"
+      state: "MAHARASHTRA"
+      city: "Pune"
+      pincode: "412105"
+
+  updateAddress:
+    required:
+      - _id
+      - name
+      - countryCode
+      - mobileNumber
+      - addressType
+      - addressLine1
+      - addressLine2
+      - country
+      - state
+      - city
+      - pincode
+    properties:
+      _id:
+        type: string
+      name:
+        type: string
+      countryCode:
+        type: string
+      mobileNumber:
+        type: string
+      addressType:
+        type: string
+      addressLine1:
+        type: string
+      addressLine2:
+        type: string
+      city:
+        type: string
+      state:
+        type: string
+      pincode:
+        type: number
+      country:
+        type: string
+    example:
+      _id: "63dcad0bf2ab58485ae18b65"
+      name: "Rohit Pandit"
+      countryCode: "+91"
+      mobileNumber: "7038415053"
+      addressType: "OTHER"
+      addressLine1: "Sambhaji Nagar, Dehu Rasta"
+      addressLine2: "Bharatmata Chowck, Moshi"
+      country: "India"
+      state: "MAHARASHTRA"
+      city: "Pune"
+      pincode: "412105"
+
+  addModerator:
+    required:
+      - name
+      - email
+      - password
+      - roleId
+    properties:
+      name:
+        type: string
+      email:
+        type: string
+      password:
+        type: string
+      roleId:
+        type: string
+    example:
+      name: "Sachin"
+      email: "sachin.beniwal@indicchain.com"
+      password: "Sachin@123"
+      roleId: "63e0f1864c062d8e9d1f1e2b"
+
+  updateModerator:
+    required:
+      - _id
+      - name
+      - email
+      - password
+      - roleId
+    properties:
+      _id:
+        type: string
+      name:
+        type: string
+      email:
+        type: string
+      password:
+        type: string
+      roleId:
+        type: string
+    example:
+      _id: "moderator id"
+      name: "name"
+      email: "email"
+      password: "password"
+      roleId: "roleId"
+
+  verifyOTPAdmin:
+    required:
+      - email
+      - otp
+    properties:
+      email:
+        type: string
+      otp:
+        type: string
+
+  editRole:
+    required:
+      - roleId
+      - role
+      - description
+      - userManagement
+      - categoryManagement
+      - subCategoryManagement
+      - productManagement
+      - notificationManagement
+      - websiteSetting
+      - staticContentManagement
+      - advertisementManagement
+      - paymentManagement
+      - commissionManagement
+      - bannerManagement
+    properties:
+      roleId:
+        type: string
+      role:
+        type: string
+      description:
+        type: string
+      userManagement:
+        type: boolean
+      categoryManagement:
+        type: boolean
+      subCategoryManagement:
+        type: boolean
+      productManagement:
+        type: boolean
+      notificationManagement:
+        type: boolean
+      websiteSetting:
+        type: boolean
+      staticContentManagement:
+        type: boolean
+      advertisementManagement:
+        type: boolean
+      paymentManagement:
+        type: boolean
+      commissionManagement:
+        type: boolean
+      bannerManagement:
+        type: boolean
+    example:
+      roleId: "_Id"
+      role: "Editor"
+      description: "Editor"
+      userManagement: true
+      categoryManagement: true
+      subCategoryManagement: true
+      productManagement: true
+      notificationManagement: true
+      websiteSetting: true
+      staticContentManagement: true
+      advertisementManagement: true
+      paymentManagement: true
+      commissionManagement: true
+      bannerManagement: true
+
+  createNotification:
+    required:
+      - title
+      - description
+      - notificationType
+    properties:
+      title:
+        type: string
+      description:
+        type: string
+      notificationType:
+        type: string
+    example:
+      title: "string"
+      description: "string"
+      notificationType: "string"
+
+  addStaticContent:
+    required:
+      - type
+      - title
+      - description
+    properties:
+      type:
+        type: string
+      title:
+        type: string
+      description:
+        type: string
+    example:
+      type: "string"
+      title: "string"
+      description: "string"
+
+  editStaticContent:
+    required:
+      - _id
+      - title
+      - description
+    properties:
+      _id:
+        type: string
+      title:
+        type: string
+      description:
+        type: string
+    example:
+      _id: "string"
+      type: "string"
+      title: "string"
+      description: "string"
+
+  updateAdvertisement:
+    required:
+      - advertisementId
+      - title
+      - content
+      - image
+      - video
+    properties:
+      advertisementId:
+        type: string
+      title:
+        type: string
+      content:
+        type: string
+      image:
+        type: string
+      video:
+        type: string
+    example:
+      advertisementId: "advertisementId"
+      title: "string"
+      content: "string"
+      image: "imageUrl"
+      video: "videoUrl"
+
+  addFeatureProduct:
+    required:
+      - productId
+    properties:
+      productId:
+        type: string
+    example:
+      productId: "productId"
+
+  addProduct:
+    required:
+      - productName
+      - productImage
+      - description
+      - categoryId
+      - subCategoryId
+      - price
+      - weight
+    properties:
+      productName:
+        type: string
+      description:
+        type: string
+      categoryId:
+        type: string
+      subCategoryId:
+        type: string
+      price:
+        type: string
+      weight:
+        type: string
+      productImage:
+        type: array
+        items:
+          type: string
+      lat:
+        type: number
+      long:
+        type: number
+
+  addFeedback:
+    required:
+      - name
+      - email
+      - message
+    properties:
+      name:
+        type: string
+      email:
+        type: string
+      message:
+        type: string
+
+  updateProduct:
+    required:
+      - productId
+    properties:
+      productId:
+        type: string
+      productName:
+        type: string
+      description:
+        type: string
+      categoryId:
+        type: string
+      subCategoryId:
+        type: string
+      price:
+        type: string
+      weight:
+        type: string
+      productImage:
+        type: array
+        items:
+          type: string
+
+  addsupervisor:
+    required:
+      - name
+      - email
+      - password
+    properties:
+      name:
+        type: string
+      email:
+        type: string
+      password:
+        type: string
+    example:
+      name: "Rahul"
+      email: "rahul.kirte@indicchain.com"
+      password: "Rahul@123"
+
+  deletesupervisor:
+    required:
+      - _id
+    properties:
+      _id:
+        type: string
+    example:
+      _id: "_id"
+
+  updatesupervisor:
+    properties:
+      name:
+        type: string
+      city:
+        type: string
+      state:
+        type: string
+      country:
+        type: string
+      userName:
+        type: string
+      mobileNumber:
+        type: string
+      profilePic:
+        type: string
+    example:
+      name: "Rohit Pandit"
+      city: "Pune"
+      state: "Maharashtra"
+      country: "India"
+      userName: "rohit"
+      mobileNumber: "7038415053"
+      profilePic: "string"
+
+  addStore:
+    required:
+      - ownerName
+      - address
+      - contactDetails
+      - issuedCouponCount
+      - issuedCouponAmount
+      - supervisorId
+    properties:
+      ownerName:
+        type: string
+      address:
+        type: string
+      contactDetails:
+        type: string
+      issuedCouponCount:
+        type: int
+      issuedCouponAmount:
+        type: int
+      supervisorId:
+        type: ObjectId
+    example:
+      ownerName: "string"
+      address: "string"
+      contactDetails: "String"
+      issuedCouponCount: "int"
+      issuedCouponAmount: "int"
+      supervisorId: "object_id"
+
+  deleteStore:
+    required:
+      - _id
+    properties:
+      _id:
+        type: string
+    example:
+      _id: "_id"
+
+  deleteModerator:
+    required:
+      - _id
+    properties:
+      _id:
+        type: string
+    example:
+      _id: "_id"
+
+  blockUnblockModerator:
+    required:
+      - _id
+    properties:
+      _id:
+        type: string
+    example:
+      _id: "_id"
+
+  redeemCoupon:
+    required:
+      - couponCode
+      - couponAmount
+    properties:
+      couponCode:
+        type: string
+      couponAmount:
+        type: number
+    example:
+      couponCode: "couponCode"
+      couponAmount: 1000
+
+  addLogo:
+    required:
+      - image
+    properties:
+      image:
+        type: string
+    example:
+      image: "imageUrl"
+
+  sendNotification:
+    required:
+      - userId
+      - title
+      - description
+    properties:
+      userId:
+        type: string
+      title:
+        type: string
+      description:
+        type: string
+    example:
+      userId: "64460e46b793a67496da33bf"
+      title: "New Notification"
+      description: "New Notification Description by admin"
+
+  addfooter:
+    required:
+      - googleLink
+      - twitterLink
+      - androidAppLink
+      - iosAppLink
+      - socialLoginHeading
+      - appLinkHeading
+      - generalTextBeforeLogin
+      - generalTextAfterLogin
+      - details
+    properties:
+      googleLink:
+        type: string
+      twitterLink:
+        type: string
+      androidAppLink:
+        type: string
+      iosAppLink:
+        type: string
+      socialLoginHeading:
+        type: string
+      appLinkHeading:
+        type: string
+      generalTextBeforeLogin:
+        type: string
+      generalTextAfterLogin:
+        type: string
+      details:
+        type: string
+    example:
+      googleLink: "string"
+      twitterLink: "string"
+      androidAppLink: "string"
+      iosAppLink: "string"
+      socialLoginHeading: "string"
+      appLinkHeading: "string"
+      generalTextBeforeLogin: "string"
+      generalTextAfterLogin: "string"
+      details: "string"
+
+  updatefooter:
+    required:
+      - footerId
+      - googleLink
+      - twitterLink
+      - androidAppLink
+      - iosAppLink
+      - socialLoginHeading
+      - appLinkHeading
+      - generalTextBeforeLogin
+      - generalTextAfterLogin
+      - details
+    properties:
+      footerId:
+        type: string
+      googleLink:
+        type: string
+      twitterLink:
+        type: string
+      androidAppLink:
+        type: string
+      iosAppLink:
+        type: string
+      socialLoginHeading:
+        type: string
+      appLinkHeading:
+        type: string
+      generalTextBeforeLogin:
+        type: string
+      generalTextAfterLogin:
+        type: string
+      details:
+        type: string
+    example:
+      footerId: "footerId"
+      googleLink: "string"
+      twitterLink: "string"
+      androidAppLink: "string"
+      iosAppLink: "string"
+      socialLoginHeading: "string"
+      appLinkHeading: "string"
+      generalTextBeforeLogin: "string"
+      generalTextAfterLogin: "string"
+      details: "string"
+
+
+  createCoupon:
+    required:
+      - couponCode
+      - couponAmount
+      - startDate
+      - endDate
+    properties:
+      couponCode:
+        type: string
+      couponAmount:
+        type: number
+      startDate:
+        type: date
+      endDate:
+        type: date
+      maxUsage:
+        type: number
+      minimumPurchaseAmount:
+        type: number
+    example:
+      couponCode: "R03C8J8V"
+      couponAmount: 1000
+      startDate: "2023-05-23"
+      endDate: "2023-06-20"
+      maxUsage : 10
+      minimumPurchaseAmount : 200
+
+  updateCoupon:
+    required:
+      - _id
+    properties:
+      _id:
+        type: string
+      endDate:
+        type: date
+      maxUsage:
+        type: number
+      minimumPurchaseAmount:
+        type: number
+    example:
+      _id: ""
+      endDate: "2023-06-20"
+      maxUsage : 10
+      minimumPurchaseAmount : 500
+
+  /user/getBestPriceProduct:
+    get:
+      summary: Get Best Price Product
+      tags:
+        - Products
+      description: Get the product with the lowest price
+      responses:
+        200:
+          description: Returns the product with the lowest price
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      _id:
+                        type: string
+                      productName:
+                        type: string
+                      price:
+                        type: number
+                      description:
+                        type: string
+                      productImage:
+                        type: array
+                        items:
+                          type: string
+        404:
+          description: No products found
+
+  /user/getbestForYouProduct:
+    get:
+      summary: Get Best Products For You
+      tags:
+        - Products
+      description: Get personalized product recommendations based on user search history
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+          description: Optional user ID to get personalized recommendations
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Page number for pagination
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: Number of items per page
+      responses:
+        200:
+          description: Returns personalized product recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        _id:
+                          type: string
+                        productName:
+                          type: string
+                        price:
+                          type: number
+                        description:
+                          type: string
+                        relevance:
+                          type: number
+                        productImage:
+                          type: array
+                          items:
+                            type: string
+        404:
+          description: No products found
+
+  /user/wishlistDataSearchProductId:
+    post:
+      summary: Search Wishlist by Product ID
+      tags:
+        - WISHLIST_MANAGEMENT
+      security:
+        - tokenauth: []
+      description: Check if a specific product exists in user's wishlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productId:
+                  type: string
+                  required: true
+      responses:
+        200:
+          description: Returns wishlist item if found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      _id:
+                        type: string
+                      productId:
+                        type: string
+                      userId:
+                        type: string
+                      status:
+                        type: string
+        404:
+          description: Product not found in wishlist
+
+  /user/deleteWishlistData:
+    delete:
+      summary: Delete All Wishlist Items
+      tags:
+        - WISHLIST_MANAGEMENT
+      security:
+        - tokenauth: []
+      description: Delete all items from user's wishlist
+      responses:
+        200:
+          description: All wishlist items deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+        404:
+          description: No items in wishlist

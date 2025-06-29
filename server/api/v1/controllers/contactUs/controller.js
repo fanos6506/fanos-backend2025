@@ -1,0 +1,200 @@
+import Joi from "joi";
+import * as _ from 'lodash';
+
+import apiError from "../../../../helper/apiError.js";
+import responseMessage from "../../../../../assets/responseMessage.js";
+import DATA_NOT_FOUND from "../../../../../assets/responseMessage.js";
+import  userServices  from "../../services/user.js";
+const {
+  checkUserExists,
+  userList,
+  emailMobileExist,
+  createUser,
+  findUser,
+  findAllUser,
+  findAllDeveloper,
+  updateUser,
+  updateUserById,
+  paginateSearch,
+  insertManyUser,
+  listUser,
+  subAdminList,
+} = userServices;
+
+import  contactusServices  from "../../services/contactUs.js";
+const { createContactUs, findContactUs, deleteContactUs, contactUsLists } =
+  contactusServices;
+
+import status from "../../../../enums/status.js";
+import userType from "../../../../enums/userType.js";
+import response from "../../../../../assets/response.js";
+import commonFunction from "../../../../helper/util.js";
+
+export class contactUsController {
+  /**
+   * @swagger
+   * /contact/createContactUs:
+   *   post:
+   *     tags:
+   *       - CONTACTUS_MANAGEMENT
+   *     summary: Create Contact Us and store the data on database.
+   *     description: Create Contact Us and store the data on database.s
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: name
+   *         description: name
+   *         in: formData
+   *         required: true
+   *       - name: email
+   *         description: email
+   *         in: formData
+   *         required: true
+   *       - name: message
+   *         description: message
+   *         in: formData
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Data found successfully .
+   *       401:
+   *         description: Invalid file format
+   */
+  async createContactUs(req, res, next) {
+    const validationSchema = Joi.object({
+      name: Joi.string().optional(),
+      email: Joi.string().optional(),
+      message: Joi.string().optional(),
+    });
+    try {
+      let validatedBody = await validationSchema.validateAsync(req.body);
+
+      let adminData = await findUser({
+        _id: req.userId,
+        userType: userType.USER,
+      });
+      if (!adminData) throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+
+      let loanRes = await createContactUs(validatedBody);
+      return res.json(
+        new response(loanRes, responseMessage.CONTACT_US_CREATED)
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /contact/listContactUs:
+   *   get:
+   *     tags:
+   *       - CONTACTUS_MANAGEMENT
+   *     summary: Listing of all contact us requests.
+   *     description: Listing of all contact us requests.
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: search
+   *         description: search
+   *         in: query
+   *         required: false
+   *       - name: status
+   *         description: status
+   *         in: query
+   *         required: false
+   *       - name: userType
+   *         description: userType
+   *         in: query
+   *         required: false
+   *       - name: fromDate
+   *         description: fromDate
+   *         in: query
+   *         required: false
+   *       - name: toDate
+   *         description: toDate
+   *         in: query
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         type: integer
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         type: integer
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Data found successfully .
+   *       401:
+   *         description: Invalid file format
+   */
+  async listContactUs(req, res, next) {
+    let validationSchema = Joi.object({
+      search: Joi.string().optional(),
+      fromDate: Joi.string().optional(),
+      toDate: Joi.string().optional(),
+      page: Joi.number().optional(),
+      limit: Joi.number().optional(),
+      userType: Joi.string().optional(),
+      status: Joi.string().optional(),
+    });
+    try {
+      let validatedBody = await await validationSchema.validateAsync(req.query);
+
+      let allContactDetails = await contactUsLists(validatedBody);
+      if (allContactDetails.length == 0)
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+
+      return res.json(
+        new response(allContactDetails, responseMessage.DATA_FOUND)
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /contact/viewcontactus:
+   *   get:
+   *     tags:
+   *       - CONTACTUS_MANAGEMENT
+   *     summary: Get single contact us request by ObjectId
+   *     description: Get single contact us request by ObjectId
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: _id
+   *         description: _id
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Data found successfully .
+   *       401:
+   *         description: Invalid file format
+   */
+  async viewcontactus(req, res, next) {
+    let validationSchema = Joi.object({
+      _id: Joi.string().required(),
+    });
+    try {
+      let validatedBody = await validationSchema.validateAsync(req.query);
+
+      let contactusRes = await findContactUs({ _id: validatedBody._id });
+      if (!contactusRes) throw apiError.notFound(DATA_NOT_FOUND);
+
+      return res.json(new response(contactusRes, responseMessage.DATA_FOUND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+}
+export default new contactUsController();

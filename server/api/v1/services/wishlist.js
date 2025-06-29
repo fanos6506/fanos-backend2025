@@ -1,0 +1,71 @@
+import wishlist from "../../../models/whishlist.js";
+import status from "../../../enums/status.js";
+
+const wishlistServices = {
+  createWishlist: async (insertObj) => {
+    return await wishlist.create(insertObj);
+  },
+
+  findWishlist: async (query) => {
+    return await wishlist.findOne(query).populate("userId productId");
+  },
+
+  deleteWishlistData: async (query) => {
+    return await wishlist.deleteOne(query);
+  },
+
+  updateWishlist: async (query, updateObj) => {
+    console.log(query, 677);
+    return await wishlist.findOneAndUpdate(query, updateObj, { new: true });
+  },
+
+  deleteWishlist: async (query) => {
+    return await wishlist.deleteMany(query);
+  },
+
+  wishlist: async (query) => {
+    return await wishlist.find(query);
+  },
+
+  checkWishlist: async (query) => {
+    return await wishlist.findOne(query);
+  },
+  paginateWishlist: async (validatedBody, _id) => {
+    let query = { status: { $ne: status.DELETE }, userId: _id };
+    const { page, limit } = validatedBody;
+    let options = {
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 10,
+      sort: { createdAt: -1 },
+      populate: {
+        path: "userId productId",
+        select: "-otp -email -mobileNumber",
+      },
+    };
+    return await wishlist.paginate(query, options);
+  },
+
+  wishlistCount: async (query) => {
+    return await wishlist.count(query);
+  },
+
+  paginateWishlistList: async (validatedBody, _id) => {
+    let query = { status: { $ne: status.DELETE }, ownerId: _id };
+    const { page, limit, productId } = validatedBody;
+    if (productId) {
+      query.productId = productId;
+    }
+    let options = {
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 10,
+      sort: { createdAt: -1 },
+      populate: {
+        path: "userId productId",
+        select: "-otp -email -mobileNumber",
+      },
+    };
+    return await wishlist.paginate(query, options);
+  },
+};
+
+export default wishlistServices ;

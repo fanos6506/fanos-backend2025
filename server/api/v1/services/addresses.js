@@ -1,0 +1,66 @@
+import addressesModel from "../../../models/addresses.js";
+import status from "../../../enums/status.js";
+
+const addressesService = {
+  createAddresses: async (insertObj) => {
+    return await addressesModel.create(insertObj);
+  },
+
+  findAddresses: async (query) => {
+    return await addressesModel.findOne(query);
+  },
+
+  findListAddresses: async (query) => {
+    return await addressesModel.find(query);
+  },
+
+  updateAddresses: async (query, updateObj) => {
+    return await addressesModel.findByIdAndUpdate(query, updateObj, {
+      new: true,
+    });
+  },
+
+  deleteAddresses: async (query) => {
+    return await addressesModel.deleteOne(query);
+  },
+
+  paginateAddressSearch: async (validatedBody) => {
+    let query = { status: { $ne: status.DELETE } };
+    const { search, fromDate, toDate, page, limit } = validatedBody;
+    if (search) {
+      query.$or = [{ name: { $regex: search, $options: "i" } }];
+    }
+
+    if (fromDate && toDate) {
+      const startOfDay = new Date(fromDate);
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999); // Set the end time of the day
+      query.$and = [
+        { createdAt: { $gte: startOfDay } },
+        { createdAt: { $lte: endOfDay } },
+      ];
+    } else if (fromDate && !toDate) {
+      query.createdAt = { $gte: new Date(fromDate) };
+    } else if (!fromDate && toDate) {
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999); // Set the end time of the day
+      query.createdAt = { $lte: endOfDay };
+    }
+    let options = {
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 10,
+      sort: { createdAt: -1 },
+    };
+    const result = await addressesModel.paginate(query, options);
+
+    // Calculate the total pages count
+    const totalPages = Math.ceil(result.total / options.limit);
+
+    // Add the total pages count to the result object
+    result.totalPages = totalPages;
+
+    return result;
+  },
+};
+
+export default addressesService;

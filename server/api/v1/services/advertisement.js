@@ -1,0 +1,35 @@
+import advertisementModel from "../../../models/advertisement.js";
+
+const advertisementServices = {
+  advertisementCreate: async (insertObj) => {
+    return await advertisementModel(insertObj).save();
+  },
+  advertisementData: async (query) => {
+    return await advertisementModel.findOne(query);
+  },
+  advertisementFind: async (query) => {
+    return await advertisementModel.find(query).sort({ priority: 1 });
+  },
+  advertisementList: async (query) => {
+    return await advertisementModel.paginate(query);
+  },
+  advertisementUpdate: async (query, updateObj) => {
+    return await advertisementModel.findByIdAndUpdate(query, updateObj, {
+      new: true,
+    });
+  },
+  bultiUpdateAdvertisement: async (query, updateObj) => {
+    return await advertisementModel.updateMany(query, updateObj, {
+      multi: true,
+    });
+  },
+  deleteAdvertise: async (query) => {
+    return await advertisementModel.findByIdAndDelete(query);
+  },
+
+  countAdvertisement: async (query) => {
+    return await advertisementModel.countDocuments(query);
+  },
+};
+
+export default  advertisementServices;

@@ -1,0 +1,317 @@
+import Joi from "joi";
+import * as _ from 'lodash';
+import config from "config";
+import apiError from "../../../../helper/apiError.js";
+import response from "../../../../../assets/response.js";
+import responseMessage from "../../../../../assets/responseMessage.js";
+import commonFunction from "../../../../helper/util.js";
+import status from "../../../../enums/status.js";
+import userType from "../../../../enums/userType.js";
+import user from "../../../../models/user.js";
+
+import  userServices  from "../../services/user.js";
+const { findUser, updateUser } = userServices;
+
+import  advertisementServices  from "../../services/advertisement.js";
+const {
+  advertisementCreate,
+  advertisementData,
+  advertisementFind,
+  advertisementUpdate,
+  deleteAdvertise,
+} = advertisementServices;
+
+export class advertisementController {
+  /**
+   * @swagger
+   * /advertisement/addadvertisement:
+   *   post:
+   *     summary:  Add advertisement
+   *     tags:
+   *       - advertisement 2.0
+   *     description: addadvertisement
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: img
+   *         description: img
+   *         in: formData
+   *         type: file
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: User Advertisement added successfully.
+   */
+  async addadvertisement(req, res, next) {
+    const validationSchema = Joi.object({
+      img: Joi.string().optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      let userResult = await findUser({
+        _id: req.userId,
+        userType: userType.ADMIN,
+      });
+      if (!userResult) {
+        throw apiError.notFound(responseMessage.ADMIN_NOT_FOUND);
+      }
+
+      if (req.files) {
+        let imgUrl = await commonFunction.getImageUrl(req.files[0].path);
+        validatedBody.img = imgUrl.secure_url;
+        await advertisementCreate(validatedBody);
+      }
+
+      return res.json(
+        new response(validatedBody, responseMessage.ADD_ADVERTISEMENT)
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /advertisement/updateAdvertisementData:
+   *   put:
+   *     summary: upadate advertisement details
+   *     tags:
+   *       - advertisement 2.0
+   *     description: upadate advertisement details
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: admin token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: admin Id
+   *         in: formData
+   *         required: true
+   *       - name: img
+   *         description: img
+   *         in: formData
+   *         type: file
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Data found successfully.
+   *       404:
+   *         description: User not found || Data not found.
+   *       501:
+   *         description: Something went wrong!
+   */
+  async updateAdvertisementData(req, res, next) {
+    const validationSchema = Joi.object({
+      _id: Joi.string().required(),
+      img: Joi.string().optional(),
+    });
+    try {
+      let validatedBody = await validationSchema.validateAsync(req.body);
+
+      let userResult = await findUser({
+        _id: req.userId,
+        userType: { $in: userType.ADMIN },
+      });
+      if (!userResult)
+        throw apiError.unauthorized(responseMessage.UNAUTHORIZED);
+
+      let advertisementResult = await advertisementData({
+        _id: validatedBody._id,
+      });
+      if (!advertisementResult)
+        throw apiError.notFound(responseMessage.ADVERTISEMENT_NOT_FOUND);
+
+      if (req.files && req.files.length != 0) {
+        let imgUrl1 = await commonFunction.getImageUrl(req.files[0].path);
+        validatedBody.img = imgUrl1.url;
+      }
+
+      const result = await advertisementUpdate(
+        { _id: validatedBody._id },
+        validatedBody
+      );
+      return res.json(
+        new response({ status: true }, responseMessage.ADVERTISEMENT_UPDATED)
+      );
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /advertisement/get-all-advertisement:
+   *   get:
+   *     tags:
+   *       - advertisement 2.0
+   *     description: Get all advertisement.
+   *     produces:
+   *       - application/json
+   *     responses:
+   *       200:
+   *         description: Advertisement list found successfully.
+   */
+  async getAllAdvertisement(req, res, next) {
+    try {
+      var result = await advertisementFind({ status: status.ACTIVE });
+      result = JSON.parse(JSON.stringify(result));
+      return res.json(new response(result, responseMessage.ADVERTISEMENT_LIST));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /advertisement/get-all-advertisement-for-admin:
+   *   get:
+   *     tags:
+   *       - advertisement 2.0
+   *     description: Get all advertisement.
+   *     produces:
+   *       - application/json
+   *     responses:
+   *       200:
+   *         description: Advertisement list found successfully.
+   */
+  async getAllAdvertisementForAdmin(req, res, next) {
+    try {
+      var result = await advertisementFind();
+      result = JSON.parse(JSON.stringify(result));
+      return res.json(new response(result, responseMessage.ADVERTISEMENT_LIST));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /advertisement/blockAndUnblockAdvertisementStatus:
+   *   put:
+   *     summary: Block Advertisement Status
+   *     tags:
+   *       - advertisement 2.0
+   *     description: Block Advertisement Status
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: admin token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: advertisement id
+   *         in: formData
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *       404:
+   *         description: User not found || Data not found.
+   *       501:
+   *         description: Something went wrong!
+   */
+  async blockAndUnblockAdvertisementStatus(req, res, next) {
+    var validationSchema = Joi.object({
+      _id: Joi.string().required(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+
+      let adminResult = await findUser({
+        _id: req.userId,
+        userType: { $in: userType.ADMIN },
+      });
+      if (!adminResult)
+        throw apiError.unauthorized(responseMessage.UNAUTHORIZED);
+
+      let findAdvertisementData = await advertisementData({
+        _id: validatedBody._id,
+      });
+      if (!findAdvertisementData)
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+
+      if (findAdvertisementData.status == status.ACTIVE) {
+        let blockRes = await advertisementUpdate(
+          { _id: findAdvertisementData._id },
+          { status: status.BLOCK }
+        );
+        return res.json(new response(blockRes, responseMessage.BLOCK_BY_ADMIN));
+      } else {
+        let activeRes = await advertisementUpdate(
+          { _id: findAdvertisementData._id },
+          { status: status.ACTIVE }
+        );
+        return res.json(
+          new response(activeRes, responseMessage.UNBLOCK_BY_ADMIN)
+        );
+      }
+    } catch (error) {
+      console.log(error, 618);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /advertisement/deleteAdvertisement:
+   *   delete:
+   *     summary: Delete Advertisement
+   *     tags:
+   *       - advertisement 2.0
+   *     description: Delete Advertisement
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: admin token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: Advertisement id
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   *       404:
+   *         description: User not found || Data not found.
+   *       501:
+   *         description: Something went wrong!
+   */
+  async deleteAdvertisement(req, res, next) {
+    var validationSchema = Joi.object({
+      _id: Joi.string().required(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+
+      let adminResult = await findUser({
+        _id: req.userId,
+        userType: { $in: userType.ADMIN },
+      });
+      if (!adminResult)
+        throw apiError.unauthorized(responseMessage.UNAUTHORIZED);
+
+      let findAdvertise = await advertisementData({ _id: validatedBody._id });
+      if (!findAdvertise)
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+
+      await deleteAdvertise({ _id: findAdvertise._id });
+      return res.json(
+        new response({}, responseMessage.ADVER_DELETED_SUCCESSFULLY)
+      );
+    } catch (error) {
+      console.log(error, 234);
+      return next(error);
+    }
+  }
+}
+
+export default new advertisementController();

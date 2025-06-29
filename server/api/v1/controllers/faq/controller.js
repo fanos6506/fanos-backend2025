@@ -1,0 +1,261 @@
+import Joi from "joi";
+import { joiPasswordExtendCore } from "joi-password";
+const joiPassword = Joi.extend(joiPasswordExtendCore);
+
+import * as _ from 'lodash';
+import apiError from "../../../../helper/apiError.js";
+import response from "../../../../../assets/response.js";
+import * as bcrypt from 'bcryptjs';
+import responseMessage from "../../../../../assets/responseMessage.js";
+import commonFunction from "../../../../helper/util.js";
+import status from "../../../../enums/status.js";
+import userType from "../../../../enums/userType.js";
+
+import  userServices  from "../../services/user.js";
+const { findUser } = userServices;
+
+import  faqServices  from "../../services/faq.js";
+const { createFAQ, findFAQ, updateFAQ, listAllFAQ, faqList, deleteFaqData } =
+  faqServices;
+
+export class faqController {
+  /**
+   * @swagger
+   * /faq/addFAQ:
+   *   post:
+   *     summary: Add FAQ
+   *     tags:
+   *       - FAQ_MANAGEMENT
+   *     description: addFAQ
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: addFAQ
+   *         description: addFAQ
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/addFAQ'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async addFAQ(req, res, next) {
+    const validationSchema = Joi.object({
+      question: Joi.string().required(),
+      answer: Joi.string().required(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      const { question, answer } = validatedBody;
+      let adminData = await findUser({
+        _id: req.userId,
+        userType: userType.ADMIN,
+      });
+      if (!adminData) throw apiError.notFound(responseMessage.ADMIN_NOT_FOUND);
+
+      var result = await createFAQ({ question: question, answer: answer });
+      return res.json(new response(result, responseMessage.FAQ_ADDED));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /faq/viewFAQ:
+   *   get:
+   *     summary: View FAQ
+   *     tags:
+   *       - FAQ_MANAGEMENT
+   *     description: viewFAQ
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: _id
+   *         description: _id
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async viewFAQ(req, res, next) {
+    var validationSchema = Joi.object({
+      _id: Joi.string().required(),
+    });
+    try {
+      let adminData = await findUser({
+        _id: req.userId,
+        userType: { $in: ["ADMIN", "USER"] },
+      });
+      if (!adminData) throw apiError.notFound(responseMessage.USER_NOT_FOUND);
+      const validatedBody = await validationSchema.validateAsync(req.query);
+
+      const result = await findFAQ({ _id: validatedBody._id });
+      if (!result) throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+
+      return res.json(new response(result, responseMessage.DATA_FOUND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /faq/editFAQ:
+   *   put:
+   *     summary: Edit FAQ
+   *     tags:
+   *       - FAQ_MANAGEMENT
+   *     description: editFAQ
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: editFAQ
+   *         description: editFAQ
+   *         in: body
+   *         required: true
+   *         schema:
+   *           $ref: '#/definitions/editFAQ'
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async editFAQ(req, res, next) {
+    const validationSchema = Joi.object({
+      _id: Joi.string().required(),
+      question: Joi.string().optional(),
+      answer: Joi.string().optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.body);
+      let adminData = await findUser({
+        _id: req.userId,
+        userType: userType.ADMIN,
+      });
+      if (!adminData) throw apiError.notFound(responseMessage.ADMIN_NOT_FOUND);
+      let faqFind = await findFAQ({ _id: validatedBody._id });
+      if (!faqFind) throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+      var result = await updateFAQ({ _id: faqFind._id }, validatedBody);
+      return res.json(new response(result, responseMessage.UPDATE_SUCCESS));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /faq/deleteFAQ:
+   *   delete:
+   *     summary: Delete FAQ
+   *     tags:
+   *       - FAQ_MANAGEMENT
+   *     description: deleteFAQ
+   *     produces:
+   *       - application/json
+   *     parameters:
+   *       - name: token
+   *         description: token
+   *         in: header
+   *         required: true
+   *       - name: faqId
+   *         description: faqId
+   *         in: query
+   *         required: true
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async deleteFAQ(req, res, next) {
+    const validationSchema = Joi.object({
+      faqId: Joi.string().required(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+
+      let adminData = await findUser({
+        _id: req.userId,
+        userType: userType.ADMIN,
+      });
+      if (!adminData) throw apiError.notFound(responseMessage.ADMIN_NOT_FOUND);
+
+      var faqInfo = await findFAQ({
+        _id: validatedBody.faqId,
+        status: { $ne: status.DELETE },
+      });
+      if (!faqInfo) throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+
+      let deleteRes = await deleteFaqData({ _id: faqInfo._id });
+      return res.json(new response(deleteRes, responseMessage.DELETE_SUCCESS));
+    } catch (error) {
+      console.log(error);
+      return next(error);
+    }
+  }
+
+  /**
+   * @swagger
+   * /faq/faqList:
+   *   get:
+   *     summary: Get all FAQ List
+   *     tags:
+   *       - FAQ_MANAGEMENT
+   *     description: faqList
+   *     parameters:
+   *       - name: search
+   *         description: search
+   *         in: query
+   *         required: false
+   *       - name: page
+   *         description: page
+   *         in: query
+   *         required: false
+   *       - name: limit
+   *         description: limit
+   *         in: query
+   *         required: false
+   *       - name: fromDate
+   *         description: fromDate
+   *         in: query
+   *         required: false
+   *       - name: toDate
+   *         description: toDate
+   *         in: query
+   *         required: false
+   *     responses:
+   *       200:
+   *         description: Returns success message
+   */
+  async faqList(req, res, next) {
+    const validationSchema = Joi.object({
+      search: Joi.string().optional(),
+      page: Joi.number().optional(),
+      limit: Joi.number().optional(),
+      fromDate: Joi.string().optional(),
+      toDate: Joi.string().optional(),
+    });
+    try {
+      const validatedBody = await validationSchema.validateAsync(req.query);
+      var result = await listAllFAQ(validatedBody);
+      if (result.docs.length == 0)
+        throw apiError.notFound(responseMessage.DATA_NOT_FOUND);
+      return res.json(new response(result, responseMessage.DATA_FOUND));
+    } catch (error) {
+      return next(error);
+    }
+  }
+}
+export default new faqController();
