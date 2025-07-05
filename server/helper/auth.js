@@ -46,6 +46,55 @@ const auth = {
     }
   },
 
+  // ✅ Optional token verification - doesn't fail if no token provided
+  verifyTokenOptional: async (req, res, next) => {
+    try {
+      const token = req.headers.token;
+      if (!token) {
+        // No token provided, continue without authentication
+        req.userId = null;
+        req.userDetails = null;
+        return next();
+      }
+
+      const decoded = jwt.verify(token, config.get("jwtsecret"));
+      
+      const user = await userModel.findOne({ _id: new mongoose.Types.ObjectId(decoded._id) });
+      if (!user) {
+        // Invalid token, continue without authentication
+        req.userId = null;
+        req.userDetails = null;
+        return next();
+      }
+
+      if (user.status === "BLOCKED") {
+        // User is blocked, continue without authentication
+        req.userId = null;
+        req.userDetails = null;
+        return next();
+      }
+
+      if (user.status === "DELETE") {
+        // User is deleted, continue without authentication
+        req.userId = null;
+        req.userDetails = null;
+        return next();
+      }
+
+      req.userId = user._id;
+      req.userDetails = user;
+      
+      return next();
+
+    } catch (err) {
+      console.error("🔥 [verifyTokenOptional] Error:", err);
+      // Any error, continue without authentication
+      req.userId = null;
+      req.userDetails = null;
+      return next();
+    }
+  },
+
   // ✅ Check if user is admin
   isAdmin: async (req, res, next) => {
     

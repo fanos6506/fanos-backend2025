@@ -22,7 +22,7 @@ export default Express.Router()
   .get("/states/:country", controller.getStates)
 
   .use(auth.verifyToken)
-  .post("/changePassword", controller.changePassword)
+  .put("/changePassword", controller.changePassword)
   .get("/viewMyProfile", controller.viewMyProfile)
   .put("/followUnfollowUser/:userId", controller.followUnfollowUser)
   .get("/checkMutualFollow/:targetUserId", controller.checkMutualFollow)

@@ -103,6 +103,11 @@ const {
   wishlist,
 } = wishlistServices;
 
+import Mongoose from "mongoose";
+import model_whishlist from "../../../../models/whishlist.js";
+import fs from 'fs';
+import path from 'path';
+
 const daysOfWeek = [
   "Sunday",
   "Monday",
@@ -112,9 +117,6 @@ const daysOfWeek = [
   "Friday",
   "Saturday",
 ];
-
-import mongoose from "mongoose";
-
 
 export class productController {
   /**
@@ -278,10 +280,6 @@ export class productController {
    *         description: ID of the product
    *         in: query
    *         required: true
-   *       - name: userId
-   *         description: Optional user ID to check wishlist status
-   *         in: query
-   *         required: false
    *     responses:
    *       200:
    *         description: Product details retrieved successfully
@@ -290,41 +288,61 @@ export class productController {
    */
   async viewProduct(req, res, next) {
     var validationSchema = Joi.object({
-      productId: Joi.string().required(),
-      userId: Joi.string().optional(),
+      productId: Joi.string().required()
     });
     try {
       var validatedBody = await validationSchema.validateAsync(req.query);
+      
       let productRes = await findProduct({
         _id: validatedBody.productId,
         status: { $ne: status.DELETE },
       });
+      
       if (!productRes) {
         throw apiError.notFound(responseMessage.PRODUCT_NOT_FOUND);
       }
-      productRes = JSON.parse(JSON.stringify(productRes));
-      if (
-        validatedBody.userId != undefined &&
-        validatedBody.userId != null &&
-        validatedBody.userId != "null"
-      ) {
-        const checkStatus = await checkWishlist({
-          userId: validatedBody.userId,
-          productId: validatedBody.productId,
-          status: "ACTIVE",
-        });
-        if (checkStatus) {
-          console.log("checkStatus", checkStatus);
-          productRes.inWishlist = true;
-        } else {
+      
+      productRes = productRes.toObject();
+
+      // التحقق من وجود المنتج في قائمة المفضلة للمستخدم
+      // Check if user is authenticated (optional authentication)
+      if (req.userId) {
+        try {
+          // Get all wishlist items for current user
+          const userWishlist = await model_whishlist.find({
+            userId: req.userId,
+            status: "ACTIVE"
+          }).populate('userId').populate('ownerId').populate('productId');
+          
+          // Check if current product exists in user's wishlist
+          let wishlistResult = null;
+          for (let item of userWishlist) {
+            if (item.productId._id.toString() === validatedBody.productId) {
+              wishlistResult = item;
+              break;
+            }
+          }
+
+          if (wishlistResult) {
+            productRes.inWishlist = true;
+            productRes.wishlistId = wishlistResult._id;
+          } else {
+            productRes.inWishlist = false;
+            productRes.wishlistId = null;
+          }
+        } catch (error) {
+          console.error('Error checking wishlist:', error);
           productRes.inWishlist = false;
+          productRes.wishlistId = null;
         }
       } else {
         productRes.inWishlist = false;
+        productRes.wishlistId = null;
       }
+
       return res.json(new response(productRes, responseMessage.PRODUCT_FOUND));
     } catch (error) {
-      console.log(error);
+      console.error("Error in viewProduct:", error);
       return next(error);
     }
   }
@@ -360,19 +378,6 @@ export class productController {
    *         in: formData
    *         type: integer
    *         required: false
-   *       - name: categoryId
-   *         description: Filter by category
-   *         in: formData
-   *         required: false
-   *       - name: subCategoryId
-   *         description: Filter by subcategory
-   *         in: formData
-   *         required: false
-   *       - name: approveStatus
-   *         description: Filter by approval status
-   *         in: formData
-   *         enum: ["PENDING" ,"REJECTED","APPROVED"]
-   *         required: false
    *     responses:
    *       200:
    *         description: Products list retrieved successfully
@@ -390,16 +395,69 @@ export class productController {
     });
     try {
       const validatedBody = await validationSchema.validateAsync(req.body);
-      const userRes = await findUser({ _id: req.userId });
       let dataResults = await productListWithPagination(validatedBody);
+      
       if (dataResults.docs.length == 0) {
-        return res.json(
-          new response(dataResults, responseMessage.PRODUCT_FOUND)
-        );
+        return res.json(new response(dataResults, responseMessage.PRODUCT_FOUND));
       }
+
+      // التحقق من وجود المنتجات في قائمة المفضلة للمستخدم
+      if (req.userId) {
+        try {
+          // Get all wishlist items for current user once
+          const userWishlist = await model_whishlist.find({
+            userId: req.userId,
+            status: "ACTIVE"
+          }).populate('userId').populate('ownerId').populate('productId');
+          
+          // Create a map for faster lookup
+          const wishlistMap = new Map();
+          userWishlist.forEach(item => {
+            wishlistMap.set(item.productId._id.toString(), item);
+          });
+
+          // Add wishlist information to each product
+          const productsWithWishlist = dataResults.docs.map((product) => {
+            const productObj = product.toObject ? product.toObject() : product;
+            const wishlistResult = wishlistMap.get(productObj._id.toString());
+
+            return {
+              ...productObj,
+              inWishlist: Boolean(wishlistResult),
+              wishlistId: wishlistResult ? wishlistResult._id : null
+            };
+          });
+
+          dataResults.docs = productsWithWishlist;
+        } catch (error) {
+          console.error('Error checking wishlist for products:', error);
+          // If error occurs, return products without wishlist info
+          const productsWithoutWishlist = dataResults.docs.map((product) => {
+            const productObj = product.toObject ? product.toObject() : product;
+            return {
+              ...productObj,
+              inWishlist: false,
+              wishlistId: null
+            };
+          });
+          dataResults.docs = productsWithoutWishlist;
+        }
+      } else {
+        // No user authentication - add default wishlist info
+        const productsWithoutWishlist = dataResults.docs.map((product) => {
+          const productObj = product.toObject ? product.toObject() : product;
+          return {
+            ...productObj,
+            inWishlist: false,
+            wishlistId: null
+          };
+        });
+        dataResults.docs = productsWithoutWishlist;
+      }
+
       return res.json(new response(dataResults, responseMessage.PRODUCT_FOUND));
     } catch (error) {
-      console.log("error", error);
+      console.error("Error in listProduct:", error);
       return next(error);
     }
   }
@@ -475,9 +533,31 @@ export class productController {
         status: { $ne: status.DELETE },
       });
       validatedBody.userId = userResult._id;
-      let dataResults = await ParticularProductListWithPagination(
-        validatedBody
-      );
+      let dataResults = await ParticularProductListWithPagination(validatedBody);
+
+      // Add wishlist information for each product
+      if (dataResults.docs && dataResults.docs.length > 0) {
+        const productsWithWishlist = await Promise.all(dataResults.docs.map(async (product) => {
+          const productObj = product.toObject ? product.toObject() : product;
+          const wishlistResult = await findWishlist({
+            userId: req.userId,
+            productId: product._id,
+            status: { $ne: status.DELETE }
+          });
+
+          if (wishlistResult) {
+            productObj.inWishlist = true;
+            productObj.wishlistId = wishlistResult._id;
+          } else {
+            productObj.inWishlist = false;
+            productObj.wishlistId = null;
+          }
+          return productObj;
+        }));
+
+        dataResults.docs = productsWithWishlist;
+      }
+
       return res.json(new response(dataResults, responseMessage.PRODUCT_FOUND));
     } catch (error) {
       console.log("error", error);
@@ -565,11 +645,31 @@ export class productController {
       if (validatedBody.status == "ACTIVE And DEACTIVE") {
         validatedBody.status = { $in: [status.ACTIVE, status.DEACTIVE] };
       }
-      let dataResults = await FindAllPaginateSearchForProduct( validatedBody);
-      // let dataResults = await findAllProduct( validatedBody);
-        // status: validatedBody.status,
-        // paymentStatus: "APPROVED",
-        // userId: validatedBody.userId,
+      let dataResults = await FindAllPaginateSearchForProduct(validatedBody);
+
+      // Add wishlist information for each product
+      if (dataResults.docs && dataResults.docs.length > 0) {
+        const productsWithWishlist = await Promise.all(dataResults.docs.map(async (product) => {
+          const productObj = product.toObject ? product.toObject() : product;
+          const wishlistResult = await findWishlist({
+            userId: req.userId,
+            productId: product._id,
+            status: { $ne: status.DELETE }
+          });
+
+          if (wishlistResult) {
+            productObj.inWishlist = true;
+            productObj.wishlistId = wishlistResult._id;
+          } else {
+            productObj.inWishlist = false;
+            productObj.wishlistId = null;
+          }
+          return productObj;
+        }));
+
+        dataResults.docs = productsWithWishlist;
+      }
+
       return res.json(new response(dataResults, responseMessage.PRODUCT_FOUND));
     } catch (error) {
       console.log("error", error);
@@ -756,7 +856,17 @@ export class productController {
       }
 
       validatedBody.productImage = result;
-      validatedBody.approveStatus = approveStatus.APPROVED;
+      // احفظ حالة الموافقة الأصلية
+      const currentApproveStatus = findProductRes.approveStatus;
+      
+      // إزالة السطر التالي:
+      // validatedBody.approveStatus = approveStatus.APPROVED;
+      // منطق جديد: لا تغير حالة الموافقة، فقط إذا كانت الحالة الحالية APPROVED
+      if (currentApproveStatus === approveStatus.APPROVED) {
+        validatedBody.approveStatus = approveStatus.APPROVED;
+      } else {
+        validatedBody.approveStatus = currentApproveStatus;
+      }
 
       const updateRes = await updateProduct(
         { _id: findProductRes._id },
@@ -1067,7 +1177,7 @@ export class productController {
 
       let query = {
         status: status.ACTIVE,
-        likesUser:new mongoose.Types.ObjectId(userToken._id),
+        likesUser:new Mongoose.Types.ObjectId(userToken._id),
       };
       let myShortlistRes = await productList(query);
       if (myShortlistRes.length == 0) {
@@ -1386,9 +1496,66 @@ export class productController {
       }
 
       const productListDATA = await productList({ userId: validatedBody._id });
-      return res.json(
-        new response(productListDATA, responseMessage.PRODUCT_FOUND)
-      );
+      
+      // Add wishlist information for each product if user is authenticated
+      if (req.userId && productListDATA && productListDATA.length > 0) {
+        try {
+          // Get all wishlist items for current user once
+          const userWishlist = await model_whishlist.find({
+            userId: req.userId,
+            status: "ACTIVE"
+          }).populate('userId').populate('ownerId').populate('productId');
+          
+          // Create a map for faster lookup
+          const wishlistMap = new Map();
+          userWishlist.forEach(item => {
+            wishlistMap.set(item.productId._id.toString(), item);
+          });
+
+          // Add wishlist information to each product
+          const productsWithWishlist = productListDATA.map((product) => {
+            const productObj = product.toObject ? product.toObject() : product;
+            const wishlistResult = wishlistMap.get(productObj._id.toString());
+
+            return {
+              ...productObj,
+              inWishlist: Boolean(wishlistResult),
+              wishlistId: wishlistResult ? wishlistResult._id : null
+            };
+          });
+
+          return res.json(
+            new response(productsWithWishlist, responseMessage.PRODUCT_FOUND)
+          );
+        } catch (error) {
+          console.error('Error checking wishlist for products:', error);
+          // If error occurs, return products without wishlist info
+          const productsWithoutWishlist = productListDATA.map((product) => {
+            const productObj = product.toObject ? product.toObject() : product;
+            return {
+              ...productObj,
+              inWishlist: false,
+              wishlistId: null
+            };
+          });
+          return res.json(
+            new response(productsWithoutWishlist, responseMessage.PRODUCT_FOUND)
+          );
+        }
+      } else {
+        // No user authentication or no products - add default wishlist info
+        const productsWithoutWishlist = productListDATA.map((product) => {
+          const productObj = product.toObject ? product.toObject() : product;
+          return {
+            ...productObj,
+            inWishlist: false,
+            wishlistId: null
+          };
+        });
+        return res.json(
+          new response(productsWithoutWishlist, responseMessage.PRODUCT_FOUND)
+        );
+      }
     } catch (error) {
       console.log("error", error);
       return next(error);
@@ -1535,6 +1702,60 @@ export class productController {
           page: validatedBody.page || 1,
           limit: validatedBody.limit || 10
         }, "لا يوجد بيانات"));
+      }
+
+      // Add wishlist information for each product if user is authenticated
+      if (req.userId && dataResults.docs && dataResults.docs.length > 0) {
+        try {
+          // Get all wishlist items for current user once
+          const userWishlist = await model_whishlist.find({
+            userId: req.userId,
+            status: "ACTIVE"
+          }).populate('userId').populate('ownerId').populate('productId');
+          
+          // Create a map for faster lookup
+          const wishlistMap = new Map();
+          userWishlist.forEach(item => {
+            wishlistMap.set(item.productId._id.toString(), item);
+          });
+
+          // Add wishlist information to each product
+          const productsWithWishlist = dataResults.docs.map((product) => {
+            const productObj = product.toObject ? product.toObject() : product;
+            const wishlistResult = wishlistMap.get(productObj._id.toString());
+
+            return {
+              ...productObj,
+              inWishlist: Boolean(wishlistResult),
+              wishlistId: wishlistResult ? wishlistResult._id : null
+            };
+          });
+
+          dataResults.docs = productsWithWishlist;
+        } catch (error) {
+          console.error('Error checking wishlist for products:', error);
+          // If error occurs, return products without wishlist info
+          const productsWithoutWishlist = dataResults.docs.map((product) => {
+            const productObj = product.toObject ? product.toObject() : product;
+            return {
+              ...productObj,
+              inWishlist: false,
+              wishlistId: null
+            };
+          });
+          dataResults.docs = productsWithoutWishlist;
+        }
+      } else {
+        // No user authentication - add default wishlist info
+        const productsWithoutWishlist = dataResults.docs.map((product) => {
+          const productObj = product.toObject ? product.toObject() : product;
+          return {
+            ...productObj,
+            inWishlist: false,
+            wishlistId: null
+          };
+        });
+        dataResults.docs = productsWithoutWishlist;
       }
       
       return res.json(new response(dataResults, responseMessage.DATA_FOUND));
@@ -1697,8 +1918,10 @@ export class productController {
       });
       if (wishlistResult) {
         obj.isWishlist = true;
+        obj.wishlistId = wishlistResult._id;
       } else {
         obj.isWishlist = false;
+        obj.wishlistId = null;
       }
       return res.json(new response(obj, responseMessage.PRODUCT_FOUND));
     } catch (error) {
@@ -1873,6 +2096,49 @@ export class productController {
         );
       }
 
+      // Add wishlist information for each product
+      if (req.userId && data && data.length > 0) {
+        try {
+          // Get all wishlist items for current user once
+          const userWishlist = await model_whishlist.find({
+            userId: req.userId,
+            status: "ACTIVE"
+          }).populate('userId').populate('ownerId').populate('productId');
+          
+          // Create a map for faster lookup
+          const wishlistMap = new Map();
+          userWishlist.forEach(item => {
+            wishlistMap.set(item.productId._id.toString(), item);
+          });
+
+          // Add wishlist information to each product
+          data = data.map((product) => {
+            const wishlistResult = wishlistMap.get(product._id.toString());
+
+            return {
+              ...product,
+              inWishlist: Boolean(wishlistResult),
+              wishlistId: wishlistResult ? wishlistResult._id : null
+            };
+          });
+        } catch (error) {
+          console.error('Error checking wishlist for products:', error);
+          // If error occurs, return products without wishlist info
+          data = data.map((product) => ({
+            ...product,
+            inWishlist: false,
+            wishlistId: null
+          }));
+        }
+      } else {
+        // No user authentication - add default wishlist info
+        data = data.map((product) => ({
+          ...product,
+          inWishlist: false,
+          wishlistId: null
+        }));
+      }
+
       let totalCount = data.length;
 
       // Calculate pagination values
@@ -1882,12 +2148,12 @@ export class productController {
       const skip = (currentPage - 1) * perPage;
 
       // Apply pagination
-      data = data.slice(skip, skip + perPage);
+      const paginatedData = data.slice(skip, skip + perPage);
 
       return res.json(
         new response(
           {
-            data: data,
+            data: paginatedData,
             currentPage: currentPage,
             perPage: perPage,
             totalPages: totalPages,

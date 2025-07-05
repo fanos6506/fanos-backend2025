@@ -913,31 +913,62 @@ export class userController {
       }
 
       const validationSchema = Joi.object({
-        oldPassword: Joi.string().required(),
-        newPassword: Joi.string().required(),
-        confirmPassword: Joi.string().required(),
+        oldPassword: Joi.string().required()
+          .messages({
+            'string.empty': 'كلمة المرور القديمة مطلوبة',
+            'any.required': 'كلمة المرور القديمة مطلوبة'
+          }),
+        newPassword: joiPassword
+          .string()
+          .minOfSpecialCharacters(1)
+          .minOfLowercase(1)
+          .minOfUppercase(1)
+          .minOfNumeric(1)
+          .noWhiteSpaces()
+          .min(8)
+          .required()
+          .messages({
+            'string.empty': 'كلمة المرور الجديدة مطلوبة',
+            'any.required': 'كلمة المرور الجديدة مطلوبة',
+            'password.minOfUppercase': 'يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل',
+            'password.minOfSpecialCharacters': 'يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل',
+            'password.minOfLowercase': 'يجب أن تحتوي كلمة المرور على حرف صغير واحد على الأقل',
+            'password.minOfNumeric': 'يجب أن تحتوي كلمة المرور على رقم واحد على الأقل',
+            'password.noWhiteSpaces': 'لا يمكن أن تحتوي كلمة المرور على مسافات',
+            'string.min': 'يجب أن تكون كلمة المرور 8 أحرف على الأقل'
+          }),
+        confirmPassword: Joi.string().required().valid(Joi.ref('newPassword'))
+          .messages({
+            'string.empty': 'تأكيد كلمة المرور مطلوب',
+            'any.required': 'تأكيد كلمة المرور مطلوب',
+            'any.only': 'كلمة المرور وتأكيدها غير متطابقين'
+          })
       });
 
       let validatedBody = await validationSchema.validateAsync(req.body);
-
-      if (validatedBody.oldPassword == validatedBody.newPassword) {
-        throw apiError.badRequest("يجب أن تكون كلمة المرور الجديدة مختلفة عن القديمة");
-      }
-
-      if (validatedBody.newPassword != validatedBody.confirmPassword) {
-        throw apiError.badRequest("كلمة المرور الجديدة وتأكيدها غير متطابقين");
-      }
 
       if (!bcrypt.compareSync(validatedBody.oldPassword, userResult.password)) {
         throw apiError.badRequest("كلمة المرور القديمة غير صحيحة");
       }
 
-      let updated = await updateUserById(userResult._id, {
-        password: bcrypt.hashSync(validatedBody.newPassword)
-      });
+      if (validatedBody.oldPassword === validatedBody.newPassword) {
+        throw apiError.badRequest("يجب أن تكون كلمة المرور الجديدة مختلفة عن القديمة");
+      }
+
+      let updated = await updateUser(
+        { _id: userResult._id },
+        { password: bcrypt.hashSync(validatedBody.newPassword) }
+      );
+
+      if (!updated) {
+        throw apiError.internal("حدث خطأ أثناء تحديث كلمة المرور");
+      }
 
       return res.json(new response({}, "تم تغيير كلمة المرور بنجاح"));
     } catch (error) {
+      if (error.isJoi) {
+        return next(apiError.badRequest(error.message));
+      }
       return next(error);
     }
   }

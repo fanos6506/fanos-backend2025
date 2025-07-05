@@ -4,10 +4,11 @@ import auth from "../../../../helper/auth.js";
 import upload from "../../../../helper/uploadHandler.js";
 
 export default Express.Router()
-  .get("/serchProduct", controller.serchProduct)
-  .post("/listProduct", controller.listProduct)
-  .get("/viewProduct", controller.viewProduct)
-  .post("/sortingAndSearchingProduct", controller.sortingAndSearchingProduct)
+  .get("/serchProduct", auth.verifyTokenOptional, controller.serchProduct)
+  .post("/listProduct", auth.verifyTokenOptional, controller.listProduct)
+  .get("/viewProduct", auth.verifyTokenOptional, controller.viewProduct)
+  .post("/sortingAndSearchingProduct", auth.verifyTokenOptional, controller.sortingAndSearchingProduct)
+  .post("/listedProduct", auth.verifyTokenOptional, controller.listedProduct)
 
   .use(auth.verifyToken)
 
@@ -16,7 +17,6 @@ export default Express.Router()
 
   .delete("/deleteProduct", controller.deleteProduct)
   .post("/sellerProfile", controller.sellerProfile)
-  .post("/listedProduct", controller.listedProduct)
   .put("/updateProductStatus", controller.updateProductStatus)
   .post("/searchProductApi", controller.searchProductApi)
 
